@@ -2,7 +2,6 @@ import { loadBudgetSetup } from '@/src/features/budgets/data/budgetSetup';
 import { formatMonthKeyLabel } from '@/src/shared/utils/date';
 import type { AppRepositories } from '@/src/storage';
 
-const CATEGORY_WARNING_RATIO = 0.85;
 const MAX_HIGHLIGHT_CATEGORIES = 4;
 
 export type DashboardCategoryHighlight = {
@@ -47,7 +46,7 @@ export async function loadDashboardState(
       const limitMinor = item.budgetLimitMinor ?? 0;
       const spentMinor = item.spentMinor;
       const remainingMinor = item.remainingMinor ?? 0;
-      const usageRatio = limitMinor <= 0 ? 0 : spentMinor / limitMinor;
+      const usageRatio = item.usageRatio ?? 0;
 
       return {
         categoryId: item.category.id,
@@ -57,11 +56,7 @@ export async function loadDashboardState(
         name: item.category.name,
         remainingMinor,
         spentMinor,
-        status: item.isOverBudget
-          ? 'over_budget'
-          : usageRatio >= CATEGORY_WARNING_RATIO
-            ? 'warning'
-            : 'on_track',
+        status: item.status === 'over_budget' ? 'over_budget' : item.status === 'warning' ? 'warning' : 'on_track',
         usageRatio,
       };
     })
