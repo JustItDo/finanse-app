@@ -1,4 +1,5 @@
 import type { Category, TransactionType } from '@/src/domain/finance';
+import { buildSavingsProgress, type SavingsProgress } from '@/src/features/savings/data/savings';
 import type { AppRepositories } from '@/src/storage';
 import { DEFAULT_CURRENCY_CODE } from '@/src/storage/sqlite/constants';
 
@@ -42,6 +43,7 @@ export type BudgetSetupState = {
   configuredCategoryBudgetsMinor: number;
   monthlyBudgetGapMinor: number | null;
   targetSavingsMinor: number | null;
+  savingsProgress: SavingsProgress;
   hasMonthlyBudget: boolean;
   hasAnyActiveCategory: boolean;
   hasAnyConfiguredCategoryBudget: boolean;
@@ -266,6 +268,7 @@ export async function loadBudgetSetup(
     monthlySpentMinor: monthSummary.expenseMinor,
     overBudgetCategoriesCount: expenseCategories.filter((item) => item.status === 'over_budget').length,
     problemExpenseCategories,
+    savingsProgress: buildSavingsProgress(monthSummary.balanceMinor, monthlyBudget?.targetSavingsMinor ?? null),
     stableExpenseCategories,
     targetSavingsMinor: monthlyBudget?.targetSavingsMinor ?? null,
     transactionsCount: monthSummary.transactionsCount,
@@ -280,6 +283,7 @@ export async function saveMonthlyBudgetConfig(
     monthKey: string;
     currencyCode: string;
     totalBudgetMinor: number | null;
+    targetSavingsMinor: number | null;
   },
 ) {
   if (input.totalBudgetMinor === null) {
@@ -290,6 +294,7 @@ export async function saveMonthlyBudgetConfig(
   await repositories.budgets.upsertMonthlyBudget({
     currencyCode: input.currencyCode,
     monthKey: input.monthKey,
+    targetSavingsMinor: input.targetSavingsMinor,
     totalBudgetMinor: input.totalBudgetMinor,
   });
 }

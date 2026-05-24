@@ -89,6 +89,7 @@ export function BudgetsScreen() {
   const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
   const [monthBudgetEnabled, setMonthBudgetEnabled] = useState(false);
   const [monthBudgetText, setMonthBudgetText] = useState('');
+  const [targetSavingsText, setTargetSavingsText] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -96,6 +97,7 @@ export function BudgetsScreen() {
     setCategoryDrafts(createDrafts(nextSetup));
     setMonthBudgetEnabled(nextSetup.monthlyBudgetMinor !== null);
     setMonthBudgetText(formatMinorUnitsInput(nextSetup.monthlyBudgetMinor));
+    setTargetSavingsText(formatMinorUnitsInput(nextSetup.targetSavingsMinor));
     setSetup(nextSetup);
   };
 
@@ -142,14 +144,22 @@ export function BudgetsScreen() {
 
     try {
       const parsedValue = monthBudgetEnabled ? parseMoneyToMinorUnits(monthBudgetText) : null;
+      const parsedTargetSavings = monthBudgetEnabled
+        ? (targetSavingsText.trim() ? parseMoneyToMinorUnits(targetSavingsText) : null)
+        : null;
 
       if (monthBudgetEnabled && parsedValue === null) {
         throw new Error('Podaj poprawną kwotę budżetu miesiąca.');
       }
 
+      if (monthBudgetEnabled && targetSavingsText.trim() && parsedTargetSavings === null) {
+        throw new Error('Podaj poprawny miesięczny cel oszczędności.');
+      }
+
       await saveMonthlyBudgetConfig(repositories, {
         currencyCode: setup.currencyCode,
         monthKey: setup.monthKey,
+        targetSavingsMinor: parsedTargetSavings,
         totalBudgetMinor: parsedValue,
       });
 
@@ -290,6 +300,14 @@ export function BudgetsScreen() {
           <Metric label="Kategorie ryzyka" value={String(setup.categoriesAtRiskCount)} />
           <Metric label="Aktywne wydatki" value={String(setup.activeExpenseCategoriesCount)} />
           <Metric label="Bez limitu" value={String(setup.uncappedExpenseCategoriesCount)} />
+          <Metric
+            label="Cel oszczędności"
+            value={
+              setup.targetSavingsMinor === null
+                ? 'Nieustawiony'
+                : formatMinorUnits(setup.targetSavingsMinor, setup.currencyCode)
+            }
+          />
         </View>
 
         {setup.monthlyBudgetUsageRatio !== null ? (
@@ -306,7 +324,8 @@ export function BudgetsScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Ustawienia budżetu miesiąca</Text>
         <Text style={styles.helperText}>
-          Budżet miesiąca jest opcjonalny. Limity kategorii dalej działają nawet bez niego.
+          Budżet miesiąca jest opcjonalny. Cel oszczędności w MVP trzymamy w tym samym planie miesiąca, więc
+          działa tylko przy aktywnym budżecie miesiąca.
         </Text>
 
         <View style={styles.row}>
@@ -323,6 +342,14 @@ export function BudgetsScreen() {
           onChangeText={setMonthBudgetText}
           placeholder="Np. 4700,00"
           value={monthBudgetText}
+        />
+
+        <AppInput
+          editable={monthBudgetEnabled}
+          keyboardType="decimal-pad"
+          onChangeText={setTargetSavingsText}
+          placeholder="Cel oszczędności, np. 1200,00"
+          value={targetSavingsText}
         />
 
         <AppButton label={isSaving ? 'Zapisywanie...' : 'Zapisz budżet miesiąca'} onPress={saveMonthBudget} />

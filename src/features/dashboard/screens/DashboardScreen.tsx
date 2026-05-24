@@ -140,6 +140,66 @@ export function DashboardScreen() {
         </Text>
       </AppCard>
 
+      <AppCard>
+        <Text style={styles.sectionTitle}>Cel oszczędności</Text>
+        {dashboard.savingsProgress.goalMinor === null ? (
+          <Text style={styles.helperText}>
+            Miesięczny cel oszczędności nie jest jeszcze ustawiony. Dodasz go w zakładce Budżety razem z planem
+            miesiąca.
+          </Text>
+        ) : (
+          <>
+            <View style={styles.metricsGrid}>
+              <MetricCard
+                label="Zaoszczędzono"
+                tone={dashboard.savingsProgress.currentSavingsMinor < 0 ? 'danger' : 'positive'}
+                value={formatMinorUnits(dashboard.savingsProgress.currentSavingsMinor, dashboard.currencyCode)}
+              />
+              <MetricCard
+                label="Cel miesiąca"
+                tone="default"
+                value={formatMinorUnits(dashboard.savingsProgress.goalMinor, dashboard.currencyCode)}
+              />
+              <MetricCard
+                label="Status"
+                tone={dashboard.savingsProgress.status === 'goal_met' ? 'positive' : 'danger'}
+                value={dashboard.savingsProgress.status === 'goal_met' ? 'Cel osiągnięty' : 'Poniżej planu'}
+              />
+              <MetricCard
+                label={dashboard.savingsProgress.status === 'goal_met' ? 'Nadwyżka' : 'Brakuje'}
+                tone={dashboard.savingsProgress.status === 'goal_met' ? 'positive' : 'default'}
+                value={formatMinorUnits(Math.abs(dashboard.savingsProgress.remainingMinor ?? 0), dashboard.currencyCode)}
+              />
+            </View>
+
+            <View style={styles.savingsProgressHeader}>
+              <Text style={styles.metricLabel}>Postęp celu</Text>
+              <Text style={styles.savingsProgressValue}>
+                {dashboard.savingsProgress.progressPercent ?? 0}% celu
+              </Text>
+            </View>
+
+            <View style={styles.progressTrack}>
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: `${Math.max(0, Math.min(dashboard.savingsProgress.progressRatio ?? 0, 1)) * 100}%`,
+                  },
+                  dashboard.savingsProgress.status === 'goal_met'
+                    ? styles.progressBarPositive
+                    : styles.progressBarWarning,
+                ]}
+              />
+            </View>
+
+            <Text style={styles.helperText}>
+              Cel oszczędności liczymy prosto jako `przychody - wydatki` dla tego miesiąca.
+            </Text>
+          </>
+        )}
+      </AppCard>
+
       {dashboard.isEmpty ? (
         <AppCard>
           <Text style={styles.sectionTitle}>Pusty start</Text>
@@ -573,6 +633,15 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: typography.caption,
     lineHeight: 20,
+  },
+  savingsProgressHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  savingsProgressValue: {
+    color: colors.text,
+    fontWeight: '700',
   },
   loadingState: {
     alignItems: 'center',

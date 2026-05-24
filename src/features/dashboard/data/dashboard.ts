@@ -1,4 +1,5 @@
 import { loadBudgetSetup } from '@/src/features/budgets/data/budgetSetup';
+import type { SavingsProgress } from '@/src/features/savings/data/savings';
 import { formatMonthKeyLabel } from '@/src/shared/utils/date';
 import type { AppRepositories } from '@/src/storage';
 
@@ -25,6 +26,8 @@ export type DashboardState = {
   balanceMinor: number;
   monthlyBudgetMinor: number | null;
   monthlyRemainingMinor: number | null;
+  targetSavingsMinor: number | null;
+  savingsProgress: SavingsProgress;
   overBudgetCategoriesCount: number;
   categoriesWithBudgetCount: number;
   transactionsCount: number;
@@ -107,6 +110,8 @@ export async function loadDashboardState(
     monthLabel: formatMonthKeyLabel(monthKey),
     monthlyBudgetMinor: setup.monthlyBudgetMinor,
     monthlyRemainingMinor: setup.monthlyRemainingMinor,
+    savingsProgress: setup.savingsProgress,
+    targetSavingsMinor: setup.targetSavingsMinor,
     overBudgetCategoriesCount: setup.expenseCategories.filter((item) => item.isOverBudget).length,
     transactionsCount: setup.transactionsCount,
   };
