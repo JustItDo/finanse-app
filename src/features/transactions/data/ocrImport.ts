@@ -564,18 +564,18 @@ function createReceiptAmountResult(candidate: ReceiptAmountCandidate | null): Re
 }
 
 function extractReceiptAmount(lines: OcrLine[], rawText: string): ReceiptAmountResult {
-  const rawLineCandidate = extractReceiptAmountFromRawLines(rawText);
-
-  if (rawLineCandidate) {
-    return createReceiptAmountResult(rawLineCandidate);
-  }
-
   const anchoredAmount = extractAnchoredReceiptTotal(lines);
 
   if (anchoredAmount !== null) {
     return createReceiptAmountResult(
       createReceiptAmountCandidate(anchoredAmount, 'układ OCR bloków', '[pozycjonowany blok OCR]', 'anchored_layout'),
     );
+  }
+
+  const rawLineCandidate = extractReceiptAmountFromRawLines(rawText);
+
+  if (rawLineCandidate) {
+    return createReceiptAmountResult(rawLineCandidate);
   }
 
   const lineTexts = lines.map((line) => line.text);
@@ -1157,13 +1157,253 @@ function extractPayableTailAmount(
 }
 
 function extractScreenshotAmount(lines: string[]) {
+  const normalizedLines = lines
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const anchoredAmount = extractAnchoredScreenshotAmount(normalizedLines);
+
+  if (anchoredAmount !== null) {
+    return anchoredAmount;
+  }
+
+  const currencyAmount = extractCurrencyTaggedScreenshotAmount(normalizedLines);
+
+  if (currencyAmount !== null) {
+    return currencyAmount;
+  }
+
+  const standaloneAmount = extractStandaloneScreenshotAmount(normalizedLines);
+
+  if (standaloneAmount !== null) {
+    return standaloneAmount;
+  }
+
   const preferredLine =
-    lines.find((line) => /pln|zł|zap[łl]acono|transakcja|płatno[śćsc]|przelew|otrzymano/i.test(line)) ?? lines[0];
+    normalizedLines.find((line) => /pln|zł|zap[łl]acono|transakcja|płatno[śćsc]|przelew|otrzymano/i.test(line)) ??
+    normalizedLines[0];
 
   return preferredLine
     ? extractLargestMoneyValue(preferredLine, { allowSpaceDecimal: true }) ??
-        extractLargestMoneyValue(lines.join(' '), { allowSpaceDecimal: true })
+        extractLargestMoneyValue(normalizedLines.join(' '), { allowSpaceDecimal: true })
     : null;
+}
+
+function extractAnchoredScreenshotAmount(lines: string[]) {
+  const anchorCandidates = lines
+    .map((line, index) => ({
+      index,
+      line,
+      priority: getScreenshotAnchorPriority(line),
+    }))
+    .filter((item): item is { index: number; line: string; priority: number } => item.priority !== null);
+
+  if (anchorCandidates.length === 0) {
+    return null;
+  }
+
+  const scoredCandidates = anchorCandidates.flatMap(({ index, line, priority }) => {
+    const windowStart = Math.max(index - 1, 0);
+    const windowEnd = Math.min(index + 4, lines.length);
+    const windowLines = lines.slice(windowStart, windowEnd);
+    const windowValues = windowLines.flatMap((windowLine) =>
+      collectMoneyCandidates(windowLine, {
+        allowCompactTotal: false,
+        allowSpaceDecimal: true,
+      })
+        .map((candidate) => toMinorUnits(candidate))
+        .filter((value): value is number => value !== null),
+    );
+    const maxWindowValue = windowValues.length > 0 ? Math.max(...windowValues) : null;
+
+    return windowLines.flatMap((windowLine, windowOffset) =>
+      collectMoneyCandidates(windowLine, {
+        allowCompactTotal: false,
+        allowSpaceDecimal: true,
+      })
+        .map((candidate) => {
+          const value = toMinorUnits(candidate);
+
+          if (value === null) {
+            return null;
+          }
+
+          const normalizedLine = windowLine.toLocaleLowerCase('pl-PL');
+          const relativeOffset = windowStart + windowOffset - index;
+          const isAnchorLine = relativeOffset === 0;
+
+          if (isScreenshotNoiseLine(normalizedLine)) {
+            return null;
+          }
+
+          return {
+            score:
+              1800 +
+              priority -
+              Math.abs(relativeOffset) * 140 +
+              (relativeOffset >= 0 ? 100 : -120) +
+              (isAnchorLine ? 260 : 0) +
+              (isLikelyStandaloneAmountLine(windowLine) ? 260 : 0) +
+              (/pln|zł/.test(normalizedLine) ? 220 : 0) +
+              (/otrzymano|wpływ|received|incoming/.test(normalizedLine) ? 200 : 0) +
+              (/zap[łl]acono|transakcja|płatno[śćsc]|przelew|blik|karta/.test(normalizedLine) ? 160 : 0) -
+              (/op[łl]ata|prowizja|fee|koszt/.test(normalizedLine) ? 420 : 0) -
+              (maxWindowValue !== null && maxWindowValue >= 2000 && value <= 1000 ? 520 : 0),
+            value,
+          };
+        })
+        .filter((item): item is { score: number; value: number } => item !== null),
+    );
+  });
+
+  if (scoredCandidates.length === 0) {
+    return null;
+  }
+
+  scoredCandidates.sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+
+    return right.value - left.value;
+  });
+
+  return scoredCandidates[0]?.value ?? null;
+}
+
+function extractCurrencyTaggedScreenshotAmount(lines: string[]) {
+  const scoredCandidates = lines.flatMap((line, index) => {
+    const normalizedLine = line.toLocaleLowerCase('pl-PL');
+
+    if (!/pln|zł/.test(normalizedLine) || isScreenshotNoiseLine(normalizedLine)) {
+      return [];
+    }
+
+    return collectMoneyCandidates(line, {
+      allowCompactTotal: false,
+      allowSpaceDecimal: true,
+    })
+      .map((candidate) => {
+        const value = toMinorUnits(candidate);
+
+        if (value === null) {
+          return null;
+        }
+
+        return {
+          score:
+            1200 +
+            index * 16 +
+            (isLikelyStandaloneAmountLine(line) ? 240 : 0) +
+            (/zap[łl]acono|transakcja|płatno[śćsc]|przelew|otrzymano|wpływ/.test(normalizedLine) ? 220 : 0) -
+            (/op[łl]ata|prowizja|fee|koszt/.test(normalizedLine) ? 420 : 0),
+          value,
+        };
+      })
+      .filter((item): item is { score: number; value: number } => item !== null);
+  });
+
+  if (scoredCandidates.length === 0) {
+    return null;
+  }
+
+  scoredCandidates.sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+
+    return right.value - left.value;
+  });
+
+  return scoredCandidates[0]?.value ?? null;
+}
+
+function extractStandaloneScreenshotAmount(lines: string[]) {
+  const scoredCandidates = lines.flatMap((line, index) => {
+    if (!isLikelyStandaloneAmountLine(line) || isScreenshotNoiseLine(line)) {
+      return [];
+    }
+
+    return collectMoneyCandidates(line, {
+      allowCompactTotal: false,
+      allowSpaceDecimal: true,
+    })
+      .map((candidate) => {
+        const value = toMinorUnits(candidate);
+
+        if (value === null) {
+          return null;
+        }
+
+        const context = lines
+          .slice(Math.max(index - 2, 0), Math.min(index + 3, lines.length))
+          .join(' ')
+          .toLocaleLowerCase('pl-PL');
+
+        return {
+          score:
+            900 +
+            index * 14 +
+            (/zap[łl]acono|transakcja|płatno[śćsc]|przelew|otrzymano|wpływ/.test(context) ? 240 : 0) -
+            (/saldo|dost[eę]pne środki|konto|rachunek/.test(context) ? 260 : 0),
+          value,
+        };
+      })
+      .filter((item): item is { score: number; value: number } => item !== null);
+  });
+
+  if (scoredCandidates.length === 0) {
+    return null;
+  }
+
+  scoredCandidates.sort((left, right) => {
+    if (right.score !== left.score) {
+      return right.score - left.score;
+    }
+
+    return right.value - left.value;
+  });
+
+  return scoredCandidates[0]?.value ?? null;
+}
+
+function getScreenshotAnchorPriority(text: string) {
+  const normalized = text.toLocaleLowerCase('pl-PL');
+
+  if (isScreenshotNoiseLine(normalized)) {
+    return null;
+  }
+
+  if (/otrzymano|wpływ|received|incoming/.test(normalized)) {
+    return 900;
+  }
+
+  if (/zap[łl]acono|płatno[śćsc]|transakcja zako[ńn]czona|op[łl]acono/.test(normalized)) {
+    return 820;
+  }
+
+  if (/transakcja|przelew|blik|karta|visa|mastercard/.test(normalized)) {
+    return 700;
+  }
+
+  if (/kwota|amount/.test(normalized)) {
+    return 620;
+  }
+
+  return null;
+}
+
+function isScreenshotNoiseLine(text: string) {
+  const normalized = text.toLocaleLowerCase('pl-PL');
+  const trimmed = normalized.trim();
+
+  return (
+    /saldo|dost[eę]pne środki|rachunek|konto osobiste|nr konta|numer konta|iban|odbiorca referencyjny/.test(
+      normalized,
+    ) ||
+    /autoryzacja|id transakcji|nr transakcji|referencja|reference|order id|identyfikator/.test(normalized) ||
+    /^[a-z0-9*#/_-]{10,}$/i.test(trimmed) ||
+    /^\d{6,}$/.test(trimmed)
+  );
 }
 
 function extractLargestMoneyValue(
