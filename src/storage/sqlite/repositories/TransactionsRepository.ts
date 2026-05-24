@@ -34,9 +34,9 @@ export type TransactionListItem = {
   sourceType: Transaction['sourceType'];
 };
 
-export type CategoryExpenseTotal = {
+export type CategoryTransactionTotal = {
   categoryId: string | null;
-  spentMinor: number;
+  totalMinor: number;
 };
 
 type TransactionRow = {
@@ -204,23 +204,24 @@ export function createTransactionsRepository(context: DatabaseContext) {
       };
     },
 
-    async getExpenseTotalsByCategory(monthKey: string) {
+    async getTotalsByCategory(monthKey: string, type: TransactionType) {
       const db = await context.getDb();
-      const rows = await db.getAllAsync<{ category_id: string | null; spent_minor: number }>(
+      const rows = await db.getAllAsync<{ category_id: string | null; total_minor: number }>(
         `
           SELECT
             category_id,
-            COALESCE(SUM(amount_minor), 0) AS spent_minor
+            COALESCE(SUM(amount_minor), 0) AS total_minor
           FROM transactions
-          WHERE type = 'expense' AND substr(occurred_at, 1, 7) = ?
+          WHERE type = ? AND substr(occurred_at, 1, 7) = ?
           GROUP BY category_id
         `,
+        type,
         monthKey,
       );
 
       return rows.map((row) => ({
         categoryId: row.category_id,
-        spentMinor: row.spent_minor,
+        totalMinor: row.total_minor,
       }));
     },
   };

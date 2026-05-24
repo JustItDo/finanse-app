@@ -5,12 +5,13 @@ import { colors, radius, spacing } from '@/src/shared/theme';
 type AppButtonProps = {
   label: string;
   onPress?: () => void;
+  disabled?: boolean;
 };
 
-export function AppButton({ label, onPress }: AppButtonProps) {
+export function AppButton({ label, onPress, disabled = false }: AppButtonProps) {
   return (
-    <Pressable onPress={onPress} style={styles.button}>
-      <Text style={styles.label}>{label}</Text>
+    <Pressable disabled={disabled} onPress={onPress} style={[styles.button, disabled ? styles.buttonDisabled : null]}>
+      <Text style={[styles.label, disabled ? styles.labelDisabled : null]}>{label}</Text>
     </Pressable>
   );
 }
@@ -23,9 +24,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  buttonDisabled: {
+    backgroundColor: colors.surfaceMuted,
+  },
   label: {
     color: colors.surface,
     fontSize: 16,
     fontWeight: '700',
+  },
+  labelDisabled: {
+    color: colors.textMuted,
   },
 });

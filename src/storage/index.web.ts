@@ -360,21 +360,21 @@ export async function createStorageServices() {
           };
         },
 
-        async getExpenseTotalsByCategory(monthKey: string) {
+        async getTotalsByCategory(monthKey: string, type: TransactionType) {
           const grouped = new Map<string | null, number>();
 
           readStore()
             .transactions.filter(
-              (transaction) => transaction.type === 'expense' && transaction.occurredAt.startsWith(monthKey),
+              (transaction) => transaction.type === type && transaction.occurredAt.startsWith(monthKey),
             )
             .forEach((transaction) => {
               const current = grouped.get(transaction.categoryId) ?? 0;
               grouped.set(transaction.categoryId, current + transaction.amountMinor);
             });
 
-          return Array.from(grouped.entries()).map(([categoryId, spentMinor]) => ({
+          return Array.from(grouped.entries()).map(([categoryId, totalMinor]) => ({
             categoryId,
-            spentMinor,
+            totalMinor,
           }));
         },
 
@@ -445,7 +445,7 @@ export function createBootstrapErrorRepositories() {
     transactions: {
       count: notReady,
       create: notReady,
-      getExpenseTotalsByCategory: notReady,
+      getTotalsByCategory: notReady,
       getMonthSummary: notReady,
       listRecent: notReady,
     },

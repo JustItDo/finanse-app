@@ -16,8 +16,10 @@ export type BudgetSetupState = {
   monthKey: string;
   currencyCode: string;
   monthlyBudgetMinor: number | null;
+  monthlyIncomeMinor: number;
   monthlySpentMinor: number;
   monthlyRemainingMinor: number | null;
+  monthlyBalanceMinor: number;
   configuredCategoryBudgetsMinor: number;
   monthlyBudgetGapMinor: number | null;
   targetSavingsMinor: number | null;
@@ -38,11 +40,11 @@ export async function loadBudgetSetup(
     repositories.budgets.getMonthlyBudget(monthKey),
     repositories.budgets.listCategoryBudgets(monthKey),
     repositories.transactions.getMonthSummary(monthKey),
-    repositories.transactions.getExpenseTotalsByCategory(monthKey),
+    repositories.transactions.getTotalsByCategory(monthKey, 'expense'),
   ]);
 
   const budgetByCategoryId = new Map(categoryBudgets.map((budget) => [budget.categoryId, budget]));
-  const spentByCategoryId = new Map(expenseTotals.map((item) => [item.categoryId ?? '__uncategorized__', item.spentMinor]));
+  const spentByCategoryId = new Map(expenseTotals.map((item) => [item.categoryId ?? '__uncategorized__', item.totalMinor]));
 
   const categoryItems = categories.map<BudgetCategoryItem>((category) => {
     const categoryBudget = budgetByCategoryId.get(category.id) ?? null;
@@ -83,7 +85,9 @@ export async function loadBudgetSetup(
     monthKey,
     monthlyBudgetGapMinor:
       monthlyBudgetMinor === null ? null : monthlyBudgetMinor - configuredCategoryBudgetsMinor,
+    monthlyBalanceMinor: monthSummary.balanceMinor,
     monthlyBudgetMinor,
+    monthlyIncomeMinor: monthSummary.incomeMinor,
     monthlyRemainingMinor,
     monthlySpentMinor: monthSummary.expenseMinor,
     targetSavingsMinor: monthlyBudget?.targetSavingsMinor ?? null,
