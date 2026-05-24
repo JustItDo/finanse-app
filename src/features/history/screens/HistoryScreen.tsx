@@ -483,7 +483,7 @@ function TransactionRow({
 
       <View style={styles.badgeRow}>
         <Badge label={item.type === 'income' ? 'Przychód' : 'Wydatek'} tone={item.type === 'income' ? 'positive' : 'default'} />
-        <Badge label={item.sourceType === 'manual' ? 'Ręcznie' : item.sourceType} tone="muted" />
+        <Badge label={item.sourceMeta.shortLabel} tone={item.sourceMeta.isOcr ? 'positive' : 'muted'} />
       </View>
     </Pressable>
   );
@@ -534,7 +534,7 @@ function TransactionDetailCard({
           <View style={styles.detailGrid}>
             <DetailMetric label="Kwota" value={formatMinorUnits(detail.amountMinor, detail.currencyCode)} />
             <DetailMetric label="Metoda" value={getPaymentMethodLabel(detail.paymentMethod)} />
-            <DetailMetric label="Źródło" value={detail.sourceType === 'manual' ? 'Ręcznie' : detail.sourceType} />
+            <DetailMetric label="Źródło" value={detail.sourceMeta.label} />
             <DetailMetric label="Aktualizacja" value={detail.updatedAt.slice(0, 10)} />
           </View>
 

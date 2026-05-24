@@ -199,6 +199,13 @@ export function AddTransactionScreen() {
             Dodano {formatMinorUnits(impact.amountMinor, context.currencyCode)} jako{' '}
             {impact.transactionType === 'income' ? 'przychód' : 'wydatek'} w kategorii {impact.categoryName}.
           </Text>
+          <View style={styles.badgeRow}>
+            <StatusBadge label={impact.sourceLabel} tone={impact.isOcrSource ? 'positive' : 'muted'} />
+            <StatusBadge
+              label={impact.transactionType === 'income' ? 'Wpływ na miesiąc zapisany' : 'Wpływ na budżet zapisany'}
+              tone="muted"
+            />
+          </View>
           <View style={styles.impactGrid}>
             <ImpactMetric
               label="Przychody miesiąca"

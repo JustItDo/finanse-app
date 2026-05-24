@@ -1,4 +1,4 @@
-import type { Category, PaymentMethod, TransactionType } from '@/src/domain/finance';
+import { getEntrySourceMeta, type Category, type PaymentMethod, type TransactionType } from '@/src/domain/finance';
 import { loadBudgetSetup, type BudgetCategoryItem } from '@/src/features/budgets/data/budgetSetup';
 import type { AppRepositories } from '@/src/storage';
 import { DEFAULT_CURRENCY_CODE } from '@/src/storage/sqlite/constants';
@@ -23,6 +23,9 @@ export type TransactionFormContext = {
 
 export type TransactionSaveImpact = {
   transactionType: TransactionType;
+  sourceType: NonNullable<TransactionSourceDraft['sourceType']> | 'manual';
+  sourceLabel: string;
+  isOcrSource: boolean;
   categoryName: string;
   monthKey: string;
   amountMinor: number;
@@ -130,6 +133,8 @@ export async function saveTransaction(
     throw new Error('Nie można zapisać transakcji bez poprawnych danych formularza.');
   }
 
+  const resolvedSourceType = sourceDraft?.sourceType ?? 'manual';
+  const sourceMeta = getEntrySourceMeta(resolvedSourceType);
   const monthKey = getMonthKeyFromDateInput(values.date);
   const [beforeSummary, categories, beforeSetup] = await Promise.all([
     repositories.transactions.getMonthSummary(monthKey),
@@ -160,7 +165,7 @@ export async function saveTransaction(
     ocrStatus: sourceDraft?.ocrStatus ?? 'not_requested',
     paymentMethod: values.paymentMethod,
     sourceReference: sourceDraft?.sourceReference ?? null,
-    sourceType: sourceDraft?.sourceType ?? 'manual',
+    sourceType: resolvedSourceType,
     type: values.type,
   });
 
@@ -181,6 +186,7 @@ export async function saveTransaction(
   return {
     amountMinor: validation.amountMinor,
     categoryName: category.name,
+    isOcrSource: sourceMeta.isOcr,
     categoryRemainingAfterMinor: afterCategory?.remainingMinor ?? null,
     categoryRemainingBeforeMinor: beforeCategory?.remainingMinor ?? null,
     categorySpentAfterMinor: afterCategory?.spentMinor ?? null,
@@ -192,6 +198,8 @@ export async function saveTransaction(
     monthIncomeAfterMinor: afterSummary.incomeMinor,
     monthIncomeBeforeMinor: beforeSummary.incomeMinor,
     monthKey,
+    sourceLabel: sourceMeta.label,
+    sourceType: resolvedSourceType,
     transactionType: values.type,
   };
 }

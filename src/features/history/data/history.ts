@@ -1,4 +1,4 @@
-import type { Category, PaymentMethod, TransactionType } from '@/src/domain/finance';
+import { getEntrySourceMeta, type Category, type PaymentMethod, type TransactionType } from '@/src/domain/finance';
 import type { AppRepositories } from '@/src/storage';
 import { formatMonthKeyLabel, getCurrentMonthKey, getMonthKeyFromDateInput, isValidDateInput } from '@/src/shared/utils/date';
 import { parseMoneyToMinorUnits } from '@/src/shared/utils/money';
@@ -10,13 +10,21 @@ export type HistoryFilterValues = {
   searchText: string;
 };
 
+type HistorySourceMeta = ReturnType<typeof getEntrySourceMeta>;
+
+type BaseHistoryTransaction = {
+  sourceMeta: HistorySourceMeta;
+};
+
 export type HistoryTransactionItem = Awaited<
   ReturnType<AppRepositories['transactions']['listHistory']>
->[number];
+>[number] &
+  BaseHistoryTransaction;
 
 export type HistoryTransactionDetail = NonNullable<
   Awaited<ReturnType<AppRepositories['transactions']['getById']>>
->;
+> &
+  BaseHistoryTransaction;
 
 export type HistoryMonthOption = {
   value: string;
@@ -105,7 +113,7 @@ export async function loadHistoryScreenState(
     isFilteredEmpty: allTransactions.length > 0 && transactions.length === 0,
     monthOptions: buildMonthOptions(months, fallbackMonthKey),
     totalCount: transactions.length,
-    transactions,
+    transactions: transactions.map(attachSourceMeta),
   };
 }
 
@@ -119,7 +127,7 @@ export async function loadHistoryDetail(
     throw new Error('Nie znaleziono wybranej transakcji.');
   }
 
-  return transaction;
+  return attachSourceMeta(transaction);
 }
 
 export async function loadHistoryEditContext(
@@ -245,4 +253,11 @@ function buildMonthOptions(months: string[], fallbackMonthKey: string): HistoryM
 
 function formatMinorToInput(amountMinor: number) {
   return (amountMinor / 100).toFixed(2).replace('.', ',');
+}
+
+function attachSourceMeta<T extends { sourceType: Parameters<typeof getEntrySourceMeta>[0] }>(transaction: T) {
+  return {
+    ...transaction,
+    sourceMeta: getEntrySourceMeta(transaction.sourceType),
+  };
 }
