@@ -126,6 +126,21 @@ export async function createStorageServices() {
         async listByTransactionId(transactionId: string) {
           return readStore().attachments.filter((attachment) => attachment.transactionId === transactionId);
         },
+
+        async linkToTransaction(attachmentId: string, transactionId: string) {
+          const store = readStore();
+          const attachment = store.attachments.find((item) => item.id === attachmentId);
+
+          if (!attachment) {
+            throw new Error('Nie znaleziono załącznika do powiązania.');
+          }
+
+          attachment.transactionId = transactionId;
+          attachment.updatedAt = toIsoTimestamp();
+          writeStore(store);
+
+          return attachment;
+        },
       },
 
       budgets: {
@@ -539,6 +554,7 @@ export function createBootstrapErrorRepositories() {
   return {
     attachments: {
       create: notReady,
+      linkToTransaction: notReady,
       listByTransactionId: notReady,
     },
     budgets: {

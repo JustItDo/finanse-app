@@ -32,6 +32,7 @@ export function createBootstrapErrorRepositories(): AppRepositories {
   return {
     attachments: {
       create: notReady,
+      linkToTransaction: notReady,
       listByTransactionId: notReady,
     },
     budgets: {

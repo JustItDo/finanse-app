@@ -43,6 +43,16 @@ export type TransactionValidationResult = {
   errors: Partial<Record<keyof TransactionFormValues, string>>;
 };
 
+export type TransactionSourceDraft = {
+  attachmentId?: string | null;
+  ocrAttachmentSource?: string | null;
+  ocrConfidence?: number | null;
+  ocrRawText?: string | null;
+  ocrStatus?: 'not_requested' | 'pending' | 'processed' | 'reviewed' | 'failed';
+  sourceReference?: string | null;
+  sourceType?: 'manual' | 'receipt_ocr' | 'screenshot_ocr' | 'obsidian_import' | 'obsidian_sync';
+};
+
 export async function loadTransactionFormContext(
   repositories: AppRepositories,
   _monthKey: string,
@@ -105,6 +115,15 @@ export async function saveManualTransaction(
   values: TransactionFormValues,
   currencyCode: string,
 ): Promise<TransactionSaveImpact> {
+  return saveTransaction(repositories, values, currencyCode);
+}
+
+export async function saveTransaction(
+  repositories: AppRepositories,
+  values: TransactionFormValues,
+  currencyCode: string,
+  sourceDraft?: TransactionSourceDraft,
+): Promise<TransactionSaveImpact> {
   const validation = validateTransactionForm(values);
 
   if (validation.amountMinor === null || Object.keys(validation.errors).length > 0) {
@@ -129,16 +148,25 @@ export async function saveManualTransaction(
       ? findCategoryBudget(beforeSetup.expenseCategories, values.categoryId)
       : null;
 
-  await repositories.transactions.create({
+  const created = await repositories.transactions.create({
     amountMinor: validation.amountMinor,
     categoryId: values.categoryId,
     currencyCode,
     description: values.description.trim() || null,
     occurredAt: `${values.date}T12:00:00.000Z`,
+    ocrAttachmentSource: sourceDraft?.ocrAttachmentSource ?? null,
+    ocrConfidence: sourceDraft?.ocrConfidence ?? null,
+    ocrRawText: sourceDraft?.ocrRawText ?? null,
+    ocrStatus: sourceDraft?.ocrStatus ?? 'not_requested',
     paymentMethod: values.paymentMethod,
-    sourceType: 'manual',
+    sourceReference: sourceDraft?.sourceReference ?? null,
+    sourceType: sourceDraft?.sourceType ?? 'manual',
     type: values.type,
   });
+
+  if (sourceDraft?.attachmentId) {
+    await repositories.attachments.linkToTransaction(sourceDraft.attachmentId, created.id);
+  }
 
   const [afterSummary, afterSetup] = await Promise.all([
     repositories.transactions.getMonthSummary(monthKey),

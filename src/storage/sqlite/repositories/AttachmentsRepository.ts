@@ -103,5 +103,28 @@ export function createAttachmentsRepository(context: DatabaseContext) {
 
       return rows.map(mapAttachment);
     },
+
+    async linkToTransaction(attachmentId: string, transactionId: string) {
+      const db = await context.getDb();
+
+      await db.runAsync(
+        `
+          UPDATE attachments
+          SET transaction_id = ?, updated_at = ?
+          WHERE id = ?
+        `,
+        transactionId,
+        toIsoTimestamp(),
+        attachmentId,
+      );
+
+      const updated = await db.getFirstAsync<AttachmentRow>('SELECT * FROM attachments WHERE id = ?', attachmentId);
+
+      if (!updated) {
+        throw new Error('Nie udało się powiązać załącznika z transakcją.');
+      }
+
+      return mapAttachment(updated);
+    },
   };
 }

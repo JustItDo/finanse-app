@@ -22,7 +22,15 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-sqlite"
+      "expo-sqlite",
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Aplikacja potrzebuje aparatu do zrobienia zdjęcia paragonu.",
+          "photosPermission": "Aplikacja potrzebuje dostępu do zdjęć, żeby wybrać screen płatności albo obraz paragonu."
+        }
+      ]
     ]
   }
 }

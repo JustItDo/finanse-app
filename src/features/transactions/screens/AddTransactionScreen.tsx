@@ -1,21 +1,32 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import type { TransactionType } from '@/src/domain/finance';
 import {
   createFormValuesForType,
   loadTransactionFormContext,
-  saveManualTransaction,
+  saveTransaction,
   validateTransactionForm,
   type TransactionFormContext,
   type TransactionFormValues,
   type TransactionSaveImpact,
 } from '@/src/features/transactions/data/addTransaction';
+import {
+  buildFormValuesFromCorrectionDraft,
+  getConfidenceLabel,
+  getCorrectionStatusLabel,
+  importTransactionFromImage,
+  updateCorrectionField,
+  type OcrCorrectionDraft,
+  type OcrCorrectionField,
+  type OcrImportMode,
+  type OcrImportResult,
+} from '@/src/features/transactions/data/ocrImport';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
 import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
-import type { TransactionType } from '@/src/domain/finance';
 
 const paymentMethodOptions: { value: TransactionFormValues['paymentMethod']; label: string }[] = [
   { value: 'card', label: 'Karta' },
@@ -37,9 +48,12 @@ export function AddTransactionScreen() {
   const [form, setForm] = useState<TransactionFormValues | null>(null);
   const [errors, setErrors] = useState<Partial<Record<keyof TransactionFormValues, string>>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [isImporting, setIsImporting] = useState<OcrImportMode | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [impact, setImpact] = useState<TransactionSaveImpact | null>(null);
+  const [ocrResult, setOcrResult] = useState<OcrImportResult | null>(null);
+  const [ocrCorrectionDraft, setOcrCorrectionDraft] = useState<OcrCorrectionDraft | null>(null);
 
   useEffect(() => {
     if (status !== 'ready') {
@@ -80,10 +94,6 @@ export function AddTransactionScreen() {
   const selectedCategory = selectedCategories.find((item) => item.id === form.categoryId) ?? null;
   const actionLabel = form.type === 'income' ? 'Dodaj przychód' : 'Dodaj wydatek';
   const saveLabel = form.type === 'income' ? 'Zapisz przychód' : 'Zapisz wydatek';
-  const detailsDescription =
-    form.type === 'income'
-      ? 'Dla przychodu zostawiamy ten sam model zapisu, ale formularz pozostaje szybki i prosty.'
-      : 'Najbardziej codzienny flow w aplikacji. Kwota i kategoria są na pierwszym planie, szczegóły są opcjonalne.';
 
   const handleSave = async () => {
     const validation = validateTransactionForm(form);
@@ -97,7 +107,17 @@ export function AddTransactionScreen() {
     setIsSaving(true);
 
     try {
-      const result = await saveManualTransaction(repositories, form, context.currencyCode);
+      const result = await saveTransaction(
+        repositories,
+        form,
+        context.currencyCode,
+        ocrResult?.sourceDraft
+          ? {
+              ...ocrResult.sourceDraft,
+              ocrStatus: 'reviewed',
+            }
+          : undefined,
+      );
       const refreshed = await loadTransactionFormContext(repositories, getCurrentMonthKey());
 
       setContext(refreshed);
@@ -114,6 +134,8 @@ export function AddTransactionScreen() {
       );
       setErrors({});
       setImpact(result);
+      setOcrResult(null);
+      setOcrCorrectionDraft(null);
       setShowDetails(false);
     } catch (error: unknown) {
       setSubmitError(error instanceof Error ? error.message : 'Nie udało się zapisać transakcji.');
@@ -122,12 +144,50 @@ export function AddTransactionScreen() {
     }
   };
 
+  const handleImport = async (mode: OcrImportMode) => {
+    setIsImporting(mode);
+    setSubmitError(null);
+    setImpact(null);
+
+    try {
+      const result = await importTransactionFromImage(repositories, mode);
+      setOcrResult(result);
+      setOcrCorrectionDraft(result.correctionDraft);
+      setForm((current) =>
+        current
+          ? buildFormValuesFromCorrectionDraft(
+              result.correctionDraft,
+              applyPrefillToForm(current, result.prefilledValues, context),
+            )
+          : current,
+      );
+      setShowDetails(false);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : 'Nie udało się przygotować OCR dla obrazu.');
+    } finally {
+      setIsImporting(null);
+    }
+  };
+
+  const updateDraftField = (key: 'amountText' | 'date' | 'merchantName' | 'categoryId', value: string) => {
+    if (!ocrCorrectionDraft) {
+      return;
+    }
+
+    const nextDraft = updateCorrectionField(ocrCorrectionDraft, key, value);
+    setOcrCorrectionDraft(nextDraft);
+    setForm((current) => (current ? buildFormValuesFromCorrectionDraft(nextDraft, current) : current));
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Update 01.1</Text>
+        <Text style={styles.eyebrow}>Update 02.1</Text>
         <Text style={styles.title}>Dodaj transakcję</Text>
-        <Text style={styles.description}>{detailsDescription}</Text>
+        <Text style={styles.description}>
+          OCR nie kończy się już na wypełnieniu pól. Masz osobny, szybki etap korekty, który pokazuje co jest pewne,
+          co wymaga uwagi i kończy się zapisem do tego samego flow co wpis ręczny.
+        </Text>
       </View>
 
       {impact ? (
@@ -185,7 +245,124 @@ export function AddTransactionScreen() {
       ) : null}
 
       <AppCard>
+        <Text style={styles.sectionTitle}>Import z obrazu</Text>
+        <Text style={styles.helperText}>
+          Paragon idzie przez aparat, a screen płatności przez galerię. OCR przygotowuje dane, ale użytkownik kończy
+          flow na etapie korekty i dopiero potem potwierdza zapis.
+        </Text>
+        <View style={styles.importActions}>
+          <AppButton
+            disabled={isImporting !== null}
+            label={isImporting === 'receipt_photo' ? 'Otwieram aparat...' : 'Zrób zdjęcie paragonu'}
+            onPress={() => {
+              void handleImport('receipt_photo');
+            }}
+          />
+          <AppButton
+            disabled={isImporting !== null}
+            label={isImporting === 'payment_screenshot' ? 'Otwieram galerię...' : 'Wybierz screen płatności'}
+            onPress={() => {
+              void handleImport('payment_screenshot');
+            }}
+          />
+        </View>
+        <Text style={styles.footnoteText}>
+          OCR on-device wymaga natywnego development builda. Na webie albo bez modułu ML Kit pozostaje fallback
+          ręczny bez utraty załącznika.
+        </Text>
+      </AppCard>
+
+      {ocrResult && ocrCorrectionDraft ? (
+        <AppCard>
+          <Text style={styles.sectionTitle}>Ekran korekty OCR</Text>
+          <Image source={{ uri: ocrResult.attachment.fileUri }} style={styles.previewImage} />
+          <Text style={styles.helperText}>{ocrResult.message}</Text>
+          <View style={styles.badgeRow}>
+            <StatusBadge label={ocrResult.attachment.sourceType === 'receipt_ocr' ? 'Paragon' : 'Screen płatności'} />
+            <StatusBadge
+              label={getCorrectionStatusLabel(ocrCorrectionDraft)}
+              tone={ocrCorrectionDraft.requiresReview ? 'muted' : 'positive'}
+            />
+          </View>
+
+          <View style={styles.reviewFieldList}>
+            <ReviewFieldCard
+              field={ocrCorrectionDraft.fields.amountText}
+              keyboardType="decimal-pad"
+              onChangeText={(value) => updateDraftField('amountText', value)}
+            />
+            <ReviewFieldCard
+              field={ocrCorrectionDraft.fields.date}
+              onChangeText={(value) => updateDraftField('date', value)}
+            />
+            <ReviewFieldCard
+              field={ocrCorrectionDraft.fields.merchantName}
+              onChangeText={(value) => updateDraftField('merchantName', value)}
+            />
+            <View
+              style={[
+                styles.reviewFieldCard,
+                ocrCorrectionDraft.fields.categoryId.needsAttention ? styles.reviewFieldCardAttention : null,
+              ]}
+            >
+              <View style={styles.reviewFieldHeader}>
+                <Text style={styles.reviewFieldLabel}>{ocrCorrectionDraft.fields.categoryId.label}</Text>
+                <StatusBadge
+                  label={getConfidenceLabel(ocrCorrectionDraft.fields.categoryId.confidence)}
+                  tone={ocrCorrectionDraft.fields.categoryId.needsAttention ? 'muted' : 'positive'}
+                />
+              </View>
+              <Text style={styles.reviewFieldHelper}>{ocrCorrectionDraft.fields.categoryId.helperText}</Text>
+              <View style={styles.chipGroup}>
+                {selectedCategories.map((category) => (
+                  <Chip
+                    key={category.id}
+                    active={form.categoryId === category.id}
+                    label={category.name}
+                    onPress={() => updateDraftField('categoryId', category.id)}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.summaryList}>
+            {ocrResult.parsedSummary.map((item) => (
+              <Text key={item} style={styles.summaryItem}>
+                {item}
+              </Text>
+            ))}
+          </View>
+
+          {ocrCorrectionDraft.rawText ? (
+            <View style={styles.rawTextBox}>
+              <Text style={styles.rawTextTitle}>Surowy tekst OCR</Text>
+              <Text style={styles.rawTextValue}>{ocrCorrectionDraft.rawText}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.inlineActions}>
+            <Pressable
+              onPress={() => {
+                setOcrResult(null);
+                setOcrCorrectionDraft(null);
+              }}
+              style={[styles.secondaryButton, styles.secondaryButtonMuted]}
+            >
+              <Text style={styles.secondaryButtonLabelMuted}>Porzuć korektę OCR</Text>
+            </Pressable>
+          </View>
+        </AppCard>
+      ) : null}
+
+      <AppCard>
         <Text style={styles.sectionTitle}>{actionLabel}</Text>
+        {ocrCorrectionDraft ? (
+          <Text style={styles.helperText}>
+            Formularz poniżej jest zasilany przez etap korekty OCR. Nadal zapisuje do tej samej warstwy danych co
+            wpis ręczny, bez równoległego modelu.
+          </Text>
+        ) : null}
 
         <FieldLabel label="Typ transakcji" required />
         <View style={styles.chipGroup}>
@@ -205,9 +382,14 @@ export function AddTransactionScreen() {
 
         <FieldLabel label="Kwota" required />
         <AppInput
-          autoFocus
+          autoFocus={!ocrResult}
           keyboardType="decimal-pad"
-          onChangeText={(value) => setForm((current) => (current ? { ...current, amountText: value } : current))}
+          onChangeText={(value) => {
+            setForm((current) => (current ? { ...current, amountText: value } : current));
+            if (ocrCorrectionDraft) {
+              updateDraftField('amountText', value);
+            }
+          }}
           placeholder="Np. 34,90"
           value={form.amountText}
         />
@@ -220,9 +402,12 @@ export function AddTransactionScreen() {
               key={category.id}
               active={form.categoryId === category.id}
               label={category.name}
-              onPress={() =>
-                setForm((current) => (current ? { ...current, categoryId: category.id } : current))
-              }
+              onPress={() => {
+                setForm((current) => (current ? { ...current, categoryId: category.id } : current));
+                if (ocrCorrectionDraft) {
+                  updateDraftField('categoryId', category.id);
+                }
+              }}
             />
           ))}
         </View>
@@ -246,7 +431,12 @@ export function AddTransactionScreen() {
           <View style={styles.detailsSection}>
             <FieldLabel label="Data" required />
             <AppInput
-              onChangeText={(value) => setForm((current) => (current ? { ...current, date: value } : current))}
+              onChangeText={(value) => {
+                setForm((current) => (current ? { ...current, date: value } : current));
+                if (ocrCorrectionDraft) {
+                  updateDraftField('date', value);
+                }
+              }}
               placeholder="RRRR-MM-DD"
               value={form.date}
             />
@@ -266,19 +456,26 @@ export function AddTransactionScreen() {
               ))}
             </View>
 
-            <FieldLabel label="Opis" />
+            <FieldLabel label="Sklep / opis" />
             <AppInput
               multiline
-              onChangeText={(value) =>
-                setForm((current) => (current ? { ...current, description: value } : current))
-              }
-              placeholder="Opcjonalnie, np. Lidl albo kawa po spotkaniu"
+              onChangeText={(value) => {
+                setForm((current) => (current ? { ...current, description: value } : current));
+                if (ocrCorrectionDraft) {
+                  updateDraftField('merchantName', value);
+                }
+              }}
+              placeholder="Np. Lidl albo kawa po spotkaniu"
               value={form.description}
             />
           </View>
         ) : null}
 
-        <AppButton disabled={isSaving} label={isSaving ? 'Zapisywanie...' : saveLabel} onPress={handleSave} />
+        <AppButton
+          disabled={isSaving || isImporting !== null}
+          label={isSaving ? 'Zapisywanie...' : saveLabel}
+          onPress={handleSave}
+        />
       </AppCard>
 
       <AppCard>
@@ -288,9 +485,47 @@ export function AddTransactionScreen() {
           Bilans miesiąca dla {form.date.slice(0, 7)} przelicza się wspólnie dla przychodów i wydatków, a budżet
           kategorii jest aktualizowany tylko dla wydatków.
         </Text>
+        {ocrResult ? (
+          <Text style={styles.helperText}>
+            Ponieważ wpis przeszedł przez korektę OCR, transakcja zapisze się ze statusem `reviewed` i zachowa
+            surowy tekst oraz powiązany załącznik.
+          </Text>
+        ) : null}
       </AppCard>
+
+      {isImporting ? (
+        <View style={styles.importOverlay}>
+          <ActivityIndicator color={colors.primary} size="small" />
+          <Text style={styles.helperText}>Przetwarzam obraz i przygotowuję dane do korekty...</Text>
+        </View>
+      ) : null}
     </ScrollView>
   );
+}
+
+function applyPrefillToForm(
+  current: TransactionFormValues,
+  prefilledValues: Partial<TransactionFormValues>,
+  context: TransactionFormContext,
+) {
+  let next = current;
+
+  if (prefilledValues.type && prefilledValues.type !== current.type) {
+    next = createFormValuesForType(current, prefilledValues.type, context);
+  }
+
+  const merged: TransactionFormValues = {
+    ...next,
+    ...prefilledValues,
+    type: prefilledValues.type ?? next.type,
+  };
+  const categories = context.categoriesByType[merged.type];
+
+  if (!categories.some((category) => category.id === merged.categoryId)) {
+    merged.categoryId = '';
+  }
+
+  return merged;
 }
 
 function Chip({
@@ -315,6 +550,49 @@ function FieldLabel({ label, required = false }: { label: string; required?: boo
       {label}
       {required ? ' *' : ''}
     </Text>
+  );
+}
+
+function ReviewFieldCard({
+  field,
+  onChangeText,
+  keyboardType,
+}: {
+  field: OcrCorrectionField;
+  onChangeText: (value: string) => void;
+  keyboardType?: 'default' | 'decimal-pad';
+}) {
+  return (
+    <View style={[styles.reviewFieldCard, field.needsAttention ? styles.reviewFieldCardAttention : null]}>
+      <View style={styles.reviewFieldHeader}>
+        <Text style={styles.reviewFieldLabel}>{field.label}</Text>
+        <StatusBadge label={getConfidenceLabel(field.confidence)} tone={field.needsAttention ? 'muted' : 'positive'} />
+      </View>
+      <AppInput keyboardType={keyboardType} onChangeText={onChangeText} value={field.value} />
+      <Text style={styles.reviewFieldHelper}>{field.helperText}</Text>
+    </View>
+  );
+}
+
+function StatusBadge({ label, tone = 'default' }: { label: string; tone?: 'default' | 'positive' | 'muted' }) {
+  return (
+    <View
+      style={[
+        styles.statusBadge,
+        tone === 'positive' ? styles.statusBadgePositive : null,
+        tone === 'muted' ? styles.statusBadgeMuted : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.statusBadgeLabel,
+          tone === 'positive' ? styles.statusBadgeLabelPositive : null,
+          tone === 'muted' ? styles.statusBadgeLabelMuted : null,
+        ]}
+      >
+        {label}
+      </Text>
+    </View>
   );
 }
 
@@ -362,54 +640,7 @@ function ImpactRemaining({
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  hero: {
-    gap: spacing.sm,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '800',
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 24,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  helperText: {
-    color: colors.textMuted,
-    lineHeight: 22,
-  },
-  fieldLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  errorText: {
-    color: colors.danger,
-    lineHeight: 22,
-  },
-  chipGroup: {
+  badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
@@ -421,8 +652,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   chipActive: {
-    backgroundColor: colors.primarySoft,
+    backgroundColor: colors.primary,
     borderColor: colors.primary,
+  },
+  chipGroup: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   chipInactive: {
     backgroundColor: colors.surface,
@@ -430,46 +666,75 @@ const styles = StyleSheet.create({
   },
   chipLabel: {
     color: colors.text,
+    fontSize: typography.caption,
     fontWeight: '600',
   },
   chipLabelActive: {
-    color: colors.primary,
+    color: colors.surface,
+  },
+  content: {
+    gap: spacing.lg,
+    padding: spacing.lg,
+    paddingBottom: spacing.xxl,
+  },
+  description: {
+    color: colors.textMuted,
+    fontSize: typography.body,
+    lineHeight: 22,
+  },
+  detailsSection: {
+    gap: spacing.sm,
   },
   detailsToggle: {
     alignSelf: 'flex-start',
-    paddingVertical: spacing.xs,
   },
   detailsToggleText: {
     color: colors.primary,
+    fontSize: typography.caption,
     fontWeight: '700',
   },
-  detailsSection: {
-    gap: spacing.md,
+  errorText: {
+    color: colors.danger,
   },
-  summaryRow: {
-    gap: spacing.xs,
-  },
-  summaryText: {
-    color: colors.textMuted,
-  },
-  impactGrid: {
-    gap: spacing.md,
-  },
-  metricCard: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  metricLabel: {
-    color: colors.textMuted,
+  eyebrow: {
+    color: colors.primary,
     fontSize: typography.caption,
+    fontWeight: '700',
     textTransform: 'uppercase',
   },
-  metricValue: {
+  fieldLabel: {
     color: colors.text,
+    fontSize: typography.caption,
     fontWeight: '700',
-    lineHeight: 22,
+  },
+  footnoteText: {
+    color: colors.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  helperText: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 20,
+  },
+  hero: {
+    gap: spacing.sm,
+  },
+  impactGrid: {
+    gap: spacing.sm,
+  },
+  importActions: {
+    gap: spacing.sm,
+  },
+  importOverlay: {
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   loadingState: {
     alignItems: 'center',
@@ -479,6 +744,142 @@ const styles = StyleSheet.create({
     padding: spacing.xl,
   },
   loadingText: {
+    color: colors.textMuted,
+    textAlign: 'center',
+  },
+  metricCard: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  metricLabel: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '600',
+  },
+  metricValue: {
     color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
+  },
+  previewImage: {
+    borderRadius: radius.md,
+    height: 180,
+    resizeMode: 'cover',
+    width: '100%',
+  },
+  rawTextBox: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  rawTextTitle: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  rawTextValue: {
+    color: colors.text,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  reviewFieldCard: {
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
+  },
+  reviewFieldCardAttention: {
+    backgroundColor: '#FFF7ED',
+    borderColor: '#D97706',
+  },
+  reviewFieldHeader: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+    justifyContent: 'space-between',
+  },
+  reviewFieldHelper: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  reviewFieldLabel: {
+    color: colors.text,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  reviewFieldList: {
+    gap: spacing.sm,
+  },
+  screen: {
+    backgroundColor: colors.background,
+  },
+  secondaryButton: {
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+  },
+  secondaryButtonLabelMuted: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  secondaryButtonMuted: {
+    backgroundColor: colors.surfaceMuted,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: typography.subtitle,
+    fontWeight: '700',
+  },
+  statusBadge: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+  },
+  statusBadgeLabel: {
+    color: colors.text,
+    fontSize: typography.caption,
+    fontWeight: '700',
+  },
+  statusBadgeLabelMuted: {
+    color: colors.textMuted,
+  },
+  statusBadgeLabelPositive: {
+    color: colors.primary,
+  },
+  statusBadgeMuted: {
+    backgroundColor: colors.background,
+  },
+  statusBadgePositive: {
+    backgroundColor: colors.primarySoft,
+  },
+  summaryItem: {
+    color: colors.text,
+    fontSize: typography.caption,
+    lineHeight: 20,
+  },
+  summaryList: {
+    gap: spacing.xs,
+  },
+  summaryRow: {
+    gap: spacing.xs,
+  },
+  summaryText: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+  },
+  title: {
+    color: colors.text,
+    fontSize: typography.title,
+    fontWeight: '800',
   },
 });
