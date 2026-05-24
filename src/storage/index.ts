@@ -65,9 +65,14 @@ export function createBootstrapErrorRepositories(): AppRepositories {
     transactions: {
       count: notReady,
       create: notReady,
+      getById: notReady,
       getTotalsByCategory: notReady,
       getMonthSummary: notReady,
+      listHistory: notReady,
+      listMonthsWithTransactions: notReady,
       listRecent: notReady,
+      remove: notReady,
+      update: notReady,
     },
   };
 }

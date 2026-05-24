@@ -3,6 +3,10 @@ import { obsidianIntegrationConfig } from '@/src/shared/config/obsidian';
 import { getCurrentMonthKey, toIsoTimestamp } from '@/src/shared/utils/date';
 import { createEntityId } from '@/src/shared/utils/id';
 import { DEFAULT_CURRENCY_CODE, DATABASE_SCHEMA_VERSION } from '@/src/storage/sqlite/constants';
+import type {
+  TransactionHistoryFilters,
+  UpdateTransactionInput,
+} from '@/src/storage/sqlite/repositories/TransactionsRepository';
 import { seedCategories } from '@/src/storage/seedData';
 
 const WEB_STORAGE_KEY = 'finansowy-copilot-web-store';
@@ -341,6 +345,36 @@ export async function createStorageServices() {
           return transaction;
         },
 
+        async getById(id: string) {
+          const store = readStore();
+          const transaction = store.transactions.find((item) => item.id === id);
+
+          if (!transaction) {
+            return null;
+          }
+
+          return {
+            amountMinor: transaction.amountMinor,
+            categoryId: transaction.categoryId,
+            categoryName: store.categories.find((category) => category.id === transaction.categoryId)?.name ?? null,
+            createdAt: transaction.createdAt,
+            currencyCode: transaction.currencyCode,
+            description: transaction.description,
+            id: transaction.id,
+            note: transaction.note,
+            occurredAt: transaction.occurredAt,
+            ocrAttachmentSource: transaction.ocrAttachmentSource,
+            ocrConfidence: transaction.ocrConfidence,
+            ocrRawText: transaction.ocrRawText,
+            ocrStatus: transaction.ocrStatus,
+            paymentMethod: transaction.paymentMethod,
+            sourceReference: transaction.sourceReference,
+            sourceType: transaction.sourceType,
+            type: transaction.type,
+            updatedAt: transaction.updatedAt,
+          };
+        },
+
         async getMonthSummary(monthKey: string) {
           const transactions = readStore().transactions.filter((transaction) =>
             transaction.occurredAt.startsWith(monthKey),
@@ -399,6 +433,99 @@ export async function createStorageServices() {
               type: transaction.type,
             }));
         },
+
+        async listHistory(filters: TransactionHistoryFilters = {}) {
+          const store = readStore();
+          const normalizedSearch = filters.searchText?.trim().toLocaleLowerCase('pl-PL') ?? '';
+
+          return store.transactions
+            .filter((transaction) => {
+              if (filters.monthKey && !transaction.occurredAt.startsWith(filters.monthKey)) {
+                return false;
+              }
+
+              if (filters.type && filters.type !== 'all' && transaction.type !== filters.type) {
+                return false;
+              }
+
+              if (filters.categoryId && transaction.categoryId !== filters.categoryId) {
+                return false;
+              }
+
+              if (!normalizedSearch) {
+                return true;
+              }
+
+              const categoryName =
+                store.categories.find((category) => category.id === transaction.categoryId)?.name ?? '';
+              const haystack = [transaction.description ?? '', transaction.note ?? '', categoryName]
+                .join(' ')
+                .toLocaleLowerCase('pl-PL');
+
+              return haystack.includes(normalizedSearch);
+            })
+            .sort((left, right) => {
+              const occurredCompare = right.occurredAt.localeCompare(left.occurredAt);
+
+              if (occurredCompare !== 0) {
+                return occurredCompare;
+              }
+
+              return right.createdAt.localeCompare(left.createdAt);
+            })
+            .map((transaction) => ({
+              amountMinor: transaction.amountMinor,
+              categoryId: transaction.categoryId,
+              categoryName:
+                store.categories.find((category) => category.id === transaction.categoryId)?.name ?? null,
+              currencyCode: transaction.currencyCode,
+              description: transaction.description,
+              id: transaction.id,
+              occurredAt: transaction.occurredAt,
+              paymentMethod: transaction.paymentMethod,
+              sourceType: transaction.sourceType,
+              type: transaction.type,
+            }));
+        },
+
+        async listMonthsWithTransactions() {
+          return Array.from(
+            new Set(readStore().transactions.map((transaction) => transaction.occurredAt.slice(0, 7))),
+          ).sort((left, right) => right.localeCompare(left));
+        },
+
+        async remove(id: string) {
+          const store = readStore();
+          store.transactions = store.transactions.filter((transaction) => transaction.id !== id);
+          store.attachments = store.attachments.map((attachment) =>
+            attachment.transactionId === id
+              ? { ...attachment, transactionId: null, updatedAt: toIsoTimestamp() }
+              : attachment,
+          );
+          writeStore(store);
+        },
+
+        async update(input: UpdateTransactionInput) {
+          const store = readStore();
+          const transaction = store.transactions.find((item) => item.id === input.id);
+
+          if (!transaction) {
+            throw new Error('Nie znaleziono transakcji do aktualizacji.');
+          }
+
+          transaction.amountMinor = input.amountMinor;
+          transaction.categoryId = input.categoryId ?? null;
+          transaction.currencyCode = input.currencyCode ?? DEFAULT_CURRENCY_CODE;
+          transaction.description = input.description ?? null;
+          transaction.note = input.note ?? null;
+          transaction.occurredAt = input.occurredAt;
+          transaction.paymentMethod = input.paymentMethod ?? 'other';
+          transaction.type = input.type;
+          transaction.updatedAt = toIsoTimestamp();
+          writeStore(store);
+
+          return transaction;
+        },
       },
     },
   };
@@ -445,9 +572,14 @@ export function createBootstrapErrorRepositories() {
     transactions: {
       count: notReady,
       create: notReady,
+      getById: notReady,
       getTotalsByCategory: notReady,
       getMonthSummary: notReady,
+      listHistory: notReady,
+      listMonthsWithTransactions: notReady,
       listRecent: notReady,
+      remove: notReady,
+      update: notReady,
     },
   };
 }

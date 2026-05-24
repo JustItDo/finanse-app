@@ -34,6 +34,36 @@ export type TransactionListItem = {
   sourceType: Transaction['sourceType'];
 };
 
+export type TransactionDetail = TransactionListItem & {
+  note: string | null;
+  sourceReference: string | null;
+  ocrStatus: Transaction['ocrStatus'];
+  ocrConfidence: number | null;
+  ocrRawText: string | null;
+  ocrAttachmentSource: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TransactionHistoryFilters = {
+  monthKey?: string | null;
+  type?: TransactionType | 'all';
+  categoryId?: string | null;
+  searchText?: string;
+};
+
+export type UpdateTransactionInput = {
+  id: string;
+  type: TransactionType;
+  amountMinor: number;
+  currencyCode?: string;
+  occurredAt: string;
+  categoryId?: string | null;
+  description?: string | null;
+  paymentMethod?: PaymentMethod;
+  note?: string | null;
+};
+
 export type CategoryTransactionTotal = {
   categoryId: string | null;
   totalMinor: number;
@@ -97,6 +127,20 @@ function mapTransactionListItem(row: TransactionListRow): TransactionListItem {
     paymentMethod: row.payment_method,
     sourceType: row.source_type,
     type: row.type,
+  };
+}
+
+function mapTransactionDetail(row: TransactionListRow): TransactionDetail {
+  return {
+    ...mapTransactionListItem(row),
+    createdAt: row.created_at,
+    note: row.note,
+    ocrAttachmentSource: row.ocr_attachment_source,
+    ocrConfidence: row.ocr_confidence,
+    ocrRawText: row.ocr_raw_text,
+    ocrStatus: row.ocr_status,
+    sourceReference: row.source_reference,
+    updatedAt: row.updated_at,
   };
 }
 
@@ -166,6 +210,139 @@ export function createTransactionsRepository(context: DatabaseContext) {
       );
 
       return rows.map(mapTransactionListItem);
+    },
+
+    async listHistory(filters: TransactionHistoryFilters = {}) {
+      const db = await context.getDb();
+      const params: (string | number | null)[] = [];
+      const conditions: string[] = [];
+
+      if (filters.monthKey) {
+        conditions.push('substr(transactions.occurred_at, 1, 7) = ?');
+        params.push(filters.monthKey);
+      }
+
+      if (filters.type && filters.type !== 'all') {
+        conditions.push('transactions.type = ?');
+        params.push(filters.type);
+      }
+
+      if (filters.categoryId) {
+        conditions.push('transactions.category_id = ?');
+        params.push(filters.categoryId);
+      }
+
+      const trimmedSearch = filters.searchText?.trim();
+
+      if (trimmedSearch) {
+        conditions.push(
+          `(
+            LOWER(COALESCE(transactions.description, '')) LIKE ?
+            OR LOWER(COALESCE(categories.name, '')) LIKE ?
+            OR LOWER(COALESCE(transactions.note, '')) LIKE ?
+          )`,
+        );
+        const searchValue = `%${trimmedSearch.toLocaleLowerCase('pl-PL')}%`;
+        params.push(searchValue, searchValue, searchValue);
+      }
+
+      const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+      const rows = await db.getAllAsync<TransactionListRow>(
+        `
+          SELECT
+            transactions.*,
+            categories.name AS category_name
+          FROM transactions
+          LEFT JOIN categories ON categories.id = transactions.category_id
+          ${whereClause}
+          ORDER BY transactions.occurred_at DESC, transactions.created_at DESC
+        `,
+        ...params,
+      );
+
+      return rows.map(mapTransactionListItem);
+    },
+
+    async listMonthsWithTransactions() {
+      const db = await context.getDb();
+      const rows = await db.getAllAsync<{ month_key: string }>(
+        `
+          SELECT DISTINCT substr(occurred_at, 1, 7) AS month_key
+          FROM transactions
+          ORDER BY month_key DESC
+        `,
+      );
+
+      return rows.map((row) => row.month_key);
+    },
+
+    async getById(id: string) {
+      const db = await context.getDb();
+      const row = await db.getFirstAsync<TransactionListRow>(
+        `
+          SELECT
+            transactions.*,
+            categories.name AS category_name
+          FROM transactions
+          LEFT JOIN categories ON categories.id = transactions.category_id
+          WHERE transactions.id = ?
+          LIMIT 1
+        `,
+        id,
+      );
+
+      return row ? mapTransactionDetail(row) : null;
+    },
+
+    async update(input: UpdateTransactionInput) {
+      const db = await context.getDb();
+      const now = toIsoTimestamp();
+
+      await db.runAsync(
+        `
+          UPDATE transactions
+          SET
+            type = ?,
+            amount_minor = ?,
+            currency_code = ?,
+            occurred_at = ?,
+            category_id = ?,
+            description = ?,
+            payment_method = ?,
+            note = ?,
+            updated_at = ?
+          WHERE id = ?
+        `,
+        input.type,
+        input.amountMinor,
+        input.currencyCode ?? DEFAULT_CURRENCY_CODE,
+        input.occurredAt,
+        input.categoryId ?? null,
+        input.description ?? null,
+        input.paymentMethod ?? 'other',
+        input.note ?? null,
+        now,
+        input.id,
+      );
+
+      const updated = await db.getFirstAsync<TransactionRow>('SELECT * FROM transactions WHERE id = ?', input.id);
+
+      if (!updated) {
+        throw new Error('Nie udało się zaktualizować transakcji.');
+      }
+
+      return mapTransaction(updated);
+    },
+
+    async remove(id: string) {
+      const db = await context.getDb();
+
+      await db.runAsync('DELETE FROM transactions WHERE id = ?', id);
+      await db.runAsync(
+        'UPDATE attachments SET transaction_id = NULL, updated_at = ? WHERE transaction_id = ?',
+        toIsoTimestamp(),
+        id,
+      );
     },
 
     async getMonthSummary(monthKey: string) {
