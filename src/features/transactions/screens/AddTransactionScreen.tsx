@@ -260,6 +260,13 @@ export function AddTransactionScreen() {
           />
           <AppButton
             disabled={isImporting !== null}
+            label={isImporting === 'receipt_gallery' ? 'Otwieram galerię...' : 'Wybierz paragon z galerii'}
+            onPress={() => {
+              void handleImport('receipt_gallery');
+            }}
+          />
+          <AppButton
+            disabled={isImporting !== null}
             label={isImporting === 'payment_screenshot' ? 'Otwieram galerię...' : 'Wybierz screen płatności'}
             onPress={() => {
               void handleImport('payment_screenshot');

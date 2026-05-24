@@ -307,7 +307,8 @@ export function BudgetsScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Kategorie przychodów</Text>
         <Text style={styles.helperText}>
-          Dla przychodów możesz ustawić docelową kwotę wpływu na miesiąc w danej kategorii.
+          W MVP kategorie przychodów pozostają proste. Pokazujemy tu realne wpływy per kategoria,
+          bez osobnych celów i limitów do ustawiania.
         </Text>
         <View style={styles.categoryList}>
           {setup.incomeCategories.map((item) => (
