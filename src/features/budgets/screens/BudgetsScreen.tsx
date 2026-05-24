@@ -139,13 +139,10 @@ export function BudgetsScreen() {
         throw new Error('Nazwa kategorii nie może być pusta.');
       }
 
-      const parsedLimit = draft.limitEnabled ? parseMoneyToMinorUnits(draft.limitText) : null;
+      const isExpense = item.transactionType === 'expense' || item.transactionType === 'both';
+      const parsedLimit = (isExpense && draft.limitEnabled) ? parseMoneyToMinorUnits(draft.limitText) : null;
 
-      if (
-        draft.limitEnabled &&
-        (item.transactionType === 'expense' || item.transactionType === 'both') &&
-        parsedLimit === null
-      ) {
+      if (isExpense && draft.limitEnabled && parsedLimit === null) {
         throw new Error(`Podaj poprawny limit dla kategorii „${item.category.name}”.`);
       }
 
@@ -154,7 +151,7 @@ export function BudgetsScreen() {
         categoryName: trimmedName,
         currencyCode: setup.currencyCode,
         isActive: draft.isActive,
-        limitAmountMinor: draft.isActive ? parsedLimit : null,
+        limitAmountMinor: (isExpense && draft.isActive) ? parsedLimit : null,
         monthKey: setup.monthKey,
         transactionType: item.transactionType,
       });
@@ -310,7 +307,7 @@ export function BudgetsScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Kategorie przychodów</Text>
         <Text style={styles.helperText}>
-          Kategorie przychodów można aktywować i edytować, ale nie mają limitów budżetowych.
+          Dla przychodów możesz ustawić docelową kwotę wpływu na miesiąc w danej kategorii.
         </Text>
         <View style={styles.categoryList}>
           {setup.incomeCategories.map((item) => (
@@ -323,7 +320,7 @@ export function BudgetsScreen() {
                 onChangeDraft={setCategoryDrafts}
                 onSave={() => saveCategory(item)}
                 onToggleActive={() => toggleCategoryActive(item.category.id)}
-                onToggleLimit={() => undefined}
+                onToggleLimit={() => toggleCategoryLimit(item.category.id)}
               />
             ) : null
           ))}
@@ -360,20 +357,22 @@ function CategoryBudgetCard({
   onToggleLimit: () => void;
   onSave: () => void;
 }) {
+  const isIncomeCategory = item.transactionType === 'income';
   const supportsBudget = item.transactionType === 'expense' || item.transactionType === 'both';
+  const amountLabel = isIncomeCategory ? 'Wpłynęło' : 'Wydano';
 
   return (
     <View style={styles.categoryCard}>
       <View style={styles.categoryHeader}>
         <View style={styles.categoryHeaderText}>
           <Text style={styles.categoryType}>
-            {item.transactionType === 'income' ? 'Przychód' : 'Wydatek'}
+            {isIncomeCategory ? 'Przychód' : 'Wydatek'}
           </Text>
           <Text style={styles.categoryMeta}>
-            Wydano: {formatMinorUnits(item.spentMinor, currencyCode)}
-            {item.remainingMinor !== null
+            {amountLabel}: {formatMinorUnits(item.spentMinor, currencyCode)}
+            {!isIncomeCategory && item.remainingMinor !== null
               ? ` • Zostało: ${formatMinorUnits(item.remainingMinor, currencyCode)}`
-              : ' • Bez limitu'}
+              : !isIncomeCategory ? ' • Bez limitu' : ''}
           </Text>
         </View>
         <ToggleChip
@@ -422,11 +421,11 @@ function CategoryBudgetCard({
             value={draft.limitText}
           />
         </>
-      ) : (
-        <Text style={styles.helperText}>Ta kategoria nie ma limitu, bo dotyczy przychodów.</Text>
-      )}
+      ) : null}
 
-      {item.isOverBudget ? <Text style={styles.errorText}>Ta kategoria jest już ponad limitem.</Text> : null}
+      {item.isOverBudget && !isIncomeCategory ? (
+        <Text style={styles.errorText}>Ta kategoria jest już ponad limitem.</Text>
+      ) : null}
 
       <AppButton label="Zapisz kategorię" onPress={onSave} />
     </View>

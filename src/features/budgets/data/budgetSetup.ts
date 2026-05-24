@@ -36,27 +36,39 @@ export async function loadBudgetSetup(
   repositories: AppRepositories,
   monthKey: string,
 ): Promise<BudgetSetupState> {
-  const [categories, monthlyBudget, categoryBudgets, monthSummary, expenseTotals] = await Promise.all([
+  const [categories, monthlyBudget, categoryBudgets, monthSummary, expenseTotals, incomeTotals] = await Promise.all([
     repositories.categories.listAll(),
     repositories.budgets.getMonthlyBudget(monthKey),
     repositories.budgets.listCategoryBudgets(monthKey),
     repositories.transactions.getMonthSummary(monthKey),
     repositories.transactions.getTotalsByCategory(monthKey, 'expense'),
+    repositories.transactions.getTotalsByCategory(monthKey, 'income'),
   ]);
 
   const budgetByCategoryId = new Map(categoryBudgets.map((budget) => [budget.categoryId, budget]));
-  const spentByCategoryId = new Map(expenseTotals.map((item) => [item.categoryId ?? '__uncategorized__', item.totalMinor]));
+  const expenseByCategoryId = new Map(expenseTotals.map((item) => [item.categoryId ?? '__uncategorized__', item.totalMinor]));
+  const incomeByCategoryId = new Map(incomeTotals.map((item) => [item.categoryId ?? '__uncategorized__', item.totalMinor]));
 
   const categoryItems = categories.map<BudgetCategoryItem>((category) => {
     const categoryBudget = budgetByCategoryId.get(category.id) ?? null;
-    const spentMinor = spentByCategoryId.get(category.id) ?? 0;
-    const remainingMinor = categoryBudget ? categoryBudget.limitAmountMinor - spentMinor : null;
+    const isIncome = category.transactionType === 'income';
+    const spentMinor = isIncome
+      ? incomeByCategoryId.get(category.id) ?? 0
+      : expenseByCategoryId.get(category.id) ?? 0;
+    
+    let remainingMinor: number | null = null;
+    let isOverBudget = false;
+
+    if (categoryBudget && !isIncome) {
+      remainingMinor = categoryBudget.limitAmountMinor - spentMinor;
+      isOverBudget = remainingMinor < 0;
+    }
 
     return {
-      budgetLimitMinor: categoryBudget?.limitAmountMinor ?? null,
+      budgetLimitMinor: isIncome ? null : (categoryBudget?.limitAmountMinor ?? null),
       category,
       isActive: !category.isArchived,
-      isOverBudget: remainingMinor !== null && remainingMinor < 0,
+      isOverBudget,
       remainingMinor,
       spentMinor,
       transactionType: category.transactionType,
@@ -137,9 +149,7 @@ export async function saveCategoryConfig(
     name: input.categoryName,
   });
 
-  const supportsBudget = input.transactionType === 'expense' || input.transactionType === 'both';
-
-  if (!supportsBudget || !input.isActive) {
+  if (!input.isActive) {
     await repositories.budgets.removeCategoryBudget(input.categoryId, input.monthKey);
     return;
   }
