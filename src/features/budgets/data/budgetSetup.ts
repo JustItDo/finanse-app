@@ -20,6 +20,7 @@ export type BudgetSetupState = {
   monthlySpentMinor: number;
   monthlyRemainingMinor: number | null;
   monthlyBalanceMinor: number;
+  transactionsCount: number;
   configuredCategoryBudgetsMinor: number;
   monthlyBudgetGapMinor: number | null;
   targetSavingsMinor: number | null;
@@ -90,6 +91,7 @@ export async function loadBudgetSetup(
     monthlyIncomeMinor: monthSummary.incomeMinor,
     monthlyRemainingMinor,
     monthlySpentMinor: monthSummary.expenseMinor,
+    transactionsCount: monthSummary.transactionsCount,
     targetSavingsMinor: monthlyBudget?.targetSavingsMinor ?? null,
     uncappedExpenseCategoriesCount: expenseCategories.filter(
       (item) => item.isActive && item.budgetLimitMinor === null,

@@ -5,6 +5,35 @@ export function getCurrentMonthKey(date = new Date()) {
   return `${year}-${month}`;
 }
 
+export function shiftMonthKey(monthKey: string, offset: number) {
+  const [yearText, monthText] = monthKey.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    throw new Error(`Nieprawidłowy monthKey: ${monthKey}`);
+  }
+
+  const date = new Date(year, month - 1 + offset, 1);
+
+  return getCurrentMonthKey(date);
+}
+
+export function formatMonthKeyLabel(monthKey: string, locale = 'pl-PL') {
+  const [yearText, monthText] = monthKey.split('-');
+  const year = Number(yearText);
+  const month = Number(monthText);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return monthKey;
+  }
+
+  return new Intl.DateTimeFormat(locale, {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(year, month - 1, 1));
+}
+
 export function toIsoTimestamp(date = new Date()) {
   return date.toISOString();
 }
