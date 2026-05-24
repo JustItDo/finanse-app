@@ -6,10 +6,10 @@ import {
 } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 
+import { AnalysisScreen } from '@/src/features/analysis/screens/AnalysisScreen';
 import { BudgetsScreen } from '@/src/features/budgets/screens/BudgetsScreen';
 import { DashboardScreen } from '@/src/features/dashboard/screens/DashboardScreen';
 import { HistoryScreen } from '@/src/features/history/screens/HistoryScreen';
-import { SettingsScreen } from '@/src/features/settings/screens/SettingsScreen';
 import { AddTransactionScreen } from '@/src/features/transactions/screens/AddTransactionScreen';
 import { colors } from '@/src/shared/theme';
 
@@ -18,7 +18,7 @@ export type RootTabParamList = {
   AddTransaction: undefined;
   History: undefined;
   Budgets: undefined;
-  Settings: undefined;
+  Analysis: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -41,7 +41,7 @@ const tabIcons: Record<keyof RootTabParamList, keyof typeof FontAwesome5.glyphMa
   AddTransaction: 'plus-circle',
   History: 'list-alt',
   Budgets: 'wallet',
-  Settings: 'cog',
+  Analysis: 'chart-line',
 };
 
 export function AppNavigator() {
@@ -79,7 +79,7 @@ export function AppNavigator() {
         />
         <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'Historia' }} />
         <Tab.Screen name="Budgets" component={BudgetsScreen} options={{ title: 'Budżety' }} />
-        <Tab.Screen name="Settings" component={SettingsScreen} options={{ title: 'Ustawienia' }} />
+        <Tab.Screen name="Analysis" component={AnalysisScreen} options={{ title: 'Analizy' }} />
       </Tab.Navigator>
     </NavigationContainer>
   );

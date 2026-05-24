@@ -69,6 +69,11 @@ export type CategoryTransactionTotal = {
   totalMinor: number;
 };
 
+export type DailyTransactionTotal = {
+  occurredOn: string;
+  totalMinor: number;
+};
+
 type TransactionRow = {
   id: string;
   type: TransactionType;
@@ -398,6 +403,28 @@ export function createTransactionsRepository(context: DatabaseContext) {
 
       return rows.map((row) => ({
         categoryId: row.category_id,
+        totalMinor: row.total_minor,
+      }));
+    },
+
+    async getDailyTotals(monthKey: string, type: TransactionType) {
+      const db = await context.getDb();
+      const rows = await db.getAllAsync<{ occurred_on: string; total_minor: number }>(
+        `
+          SELECT
+            substr(occurred_at, 1, 10) AS occurred_on,
+            COALESCE(SUM(amount_minor), 0) AS total_minor
+          FROM transactions
+          WHERE type = ? AND substr(occurred_at, 1, 7) = ?
+          GROUP BY occurred_on
+          ORDER BY occurred_on ASC
+        `,
+        type,
+        monthKey,
+      );
+
+      return rows.map((row) => ({
+        occurredOn: row.occurred_on,
         totalMinor: row.total_minor,
       }));
     },

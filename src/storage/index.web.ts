@@ -427,6 +427,27 @@ export async function createStorageServices() {
           }));
         },
 
+        async getDailyTotals(monthKey: string, type: TransactionType) {
+          const grouped = new Map<string, number>();
+
+          readStore()
+            .transactions.filter(
+              (transaction) => transaction.type === type && transaction.occurredAt.startsWith(monthKey),
+            )
+            .forEach((transaction) => {
+              const occurredOn = transaction.occurredAt.slice(0, 10);
+              const current = grouped.get(occurredOn) ?? 0;
+              grouped.set(occurredOn, current + transaction.amountMinor);
+            });
+
+          return Array.from(grouped.entries())
+            .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+            .map(([occurredOn, totalMinor]) => ({
+              occurredOn,
+              totalMinor,
+            }));
+        },
+
         async listRecent(limit = 20) {
           const store = readStore();
 
@@ -589,6 +610,7 @@ export function createBootstrapErrorRepositories() {
       count: notReady,
       create: notReady,
       getById: notReady,
+      getDailyTotals: notReady,
       getTotalsByCategory: notReady,
       getMonthSummary: notReady,
       listHistory: notReady,
