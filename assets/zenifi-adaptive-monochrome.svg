@@ -1,0 +1,53 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Zenifi adaptive monochrome">
+  <path
+    d="M296 322 H708"
+    stroke="#111111"
+    stroke-width="88"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M696 322 L372 650"
+    stroke="#111111"
+    stroke-width="88"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M356 650 H740"
+    stroke="#111111"
+    stroke-width="88"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M416 792 H608"
+    stroke="#111111"
+    stroke-width="44"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M674 572 V744"
+    stroke="#111111"
+    stroke-width="40"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M674 572 L730 628"
+    stroke="#111111"
+    stroke-width="40"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M674 572 L618 628"
+    stroke="#111111"
+    stroke-width="40"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+</svg>

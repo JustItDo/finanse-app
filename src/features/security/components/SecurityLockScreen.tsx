@@ -78,7 +78,7 @@ export function SecurityLockScreen({
   return (
     <View style={styles.overlay}>
       <AppCard>
-        <Text style={styles.title}>Odblokuj aplikację</Text>
+        <Text style={styles.title}>Zenifi</Text>
         <Text style={styles.description}>{description}</Text>
 
         {showBiometricAction ? (
@@ -158,7 +158,7 @@ export function SecurityLockScreen({
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
-    backgroundColor: 'rgba(31, 41, 51, 0.96)',
+    backgroundColor: 'rgba(14, 47, 47, 0.96)',
     flex: 1,
     justifyContent: 'center',
     padding: spacing.xl,

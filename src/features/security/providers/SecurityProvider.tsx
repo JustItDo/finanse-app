@@ -244,7 +244,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
 
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Odblokuj Finansowy Copilot',
+        promptMessage: 'Odblokuj Zenifi',
       });
 
       if (!result.success) {

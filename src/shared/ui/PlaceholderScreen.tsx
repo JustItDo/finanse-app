@@ -24,7 +24,7 @@ export function PlaceholderScreen({
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Finanse MVP</Text>
+        <Text style={styles.eyebrow}>Zenifi</Text>
         <Text style={styles.title}>{title}</Text>
         <Text style={styles.description}>{description}</Text>
       </View>
