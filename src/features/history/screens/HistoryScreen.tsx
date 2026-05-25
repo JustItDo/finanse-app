@@ -25,7 +25,10 @@ import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
 import { formatMonthKeyLabel } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
-const transactionTypeOptions: { value: TransactionType | 'all'; label: string }[] = [
+const transactionTypeOptions: {
+  value: TransactionType | 'all';
+  label: string;
+}[] = [
   { value: 'all', label: 'Wszystkie' },
   { value: 'expense', label: 'Wydatki' },
   { value: 'income', label: 'Przychody' },
@@ -36,7 +39,10 @@ const editTypeOptions: { value: TransactionType; label: string }[] = [
   { value: 'income', label: 'Przychód' },
 ];
 
-const paymentMethodOptions: { value: EditableTransactionValues['paymentMethod']; label: string }[] = [
+const paymentMethodOptions: {
+  value: EditableTransactionValues['paymentMethod'];
+  label: string;
+}[] = [
   { value: 'card', label: 'Karta' },
   { value: 'blik', label: 'BLIK' },
   { value: 'cash', label: 'Gotówka' },
@@ -49,20 +55,31 @@ export function HistoryScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
 
-  const [historyState, setHistoryState] = useState<HistoryScreenState | null>(null);
+  const [historyState, setHistoryState] = useState<HistoryScreenState | null>(
+    null,
+  );
   const [searchDraft, setSearchDraft] = useState('');
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
+  const [selectedTransactionId, setSelectedTransactionId] = useState<
+    string | null
+  >(null);
   const [detail, setDetail] = useState<HistoryTransactionDetail | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [editContext, setEditContext] = useState<HistoryEditContext | null>(null);
-  const [editValues, setEditValues] = useState<EditableTransactionValues | null>(null);
-  const [editErrors, setEditErrors] = useState<Partial<Record<keyof EditableTransactionValues, string>>>({});
+  const [editContext, setEditContext] = useState<HistoryEditContext | null>(
+    null,
+  );
+  const [editValues, setEditValues] =
+    useState<EditableTransactionValues | null>(null);
+  const [editErrors, setEditErrors] = useState<
+    Partial<Record<keyof EditableTransactionValues, string>>
+  >({});
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const latestFiltersRef = useRef<Parameters<typeof loadHistoryScreenState>[1]>({});
+  const latestFiltersRef = useRef<Parameters<typeof loadHistoryScreenState>[1]>(
+    {},
+  );
   const latestSelectedTransactionIdRef = useRef<string | null>(null);
 
   const loadScreen = async (
@@ -136,7 +153,11 @@ export function HistoryScreen() {
           return;
         }
 
-        setLoadError(reason instanceof Error ? reason.message : 'Nie udało się wczytać historii.');
+        setLoadError(
+          reason instanceof Error
+            ? reason.message
+            : 'Nie udało się wczytać historii.',
+        );
       });
 
     return () => {
@@ -172,7 +193,11 @@ export function HistoryScreen() {
           return;
         }
 
-        setDetailError(reason instanceof Error ? reason.message : 'Nie udało się wczytać szczegółu transakcji.');
+        setDetailError(
+          reason instanceof Error
+            ? reason.message
+            : 'Nie udało się wczytać szczegółu transakcji.',
+        );
       });
 
     return () => {
@@ -188,22 +213,36 @@ export function HistoryScreen() {
     );
   }
 
-  const applyFilterPatch = async (patch: Partial<HistoryScreenState['filters']>) => {
+  const applyFilterPatch = async (
+    patch: Partial<HistoryScreenState['filters']>,
+  ) => {
     const nextFilters = buildNextHistoryFilters(historyState.filters, patch);
 
     try {
       await loadScreen(nextFilters, selectedTransactionId);
     } catch (reason: unknown) {
-      setLoadError(reason instanceof Error ? reason.message : 'Nie udało się odświeżyć historii.');
+      setLoadError(
+        reason instanceof Error
+          ? reason.message
+          : 'Nie udało się odświeżyć historii.',
+      );
     }
   };
 
   const handleSaveEdit = async () => {
-    if (!selectedTransactionId || !editContext || !editValues || !historyState) {
+    if (
+      !selectedTransactionId ||
+      !editContext ||
+      !editValues ||
+      !historyState
+    ) {
       return;
     }
 
-    const validation = validateEditableTransaction(editValues, editContext.categoriesByType);
+    const validation = validateEditableTransaction(
+      editValues,
+      editContext.categoriesByType,
+    );
     setEditErrors(validation.errors);
 
     if (Object.keys(validation.errors).length > 0) {
@@ -213,15 +252,22 @@ export function HistoryScreen() {
     setIsSaving(true);
 
     try {
-      const result = await updateTransactionFromHistory(repositories, selectedTransactionId, editValues, editContext);
+      const result = await updateTransactionFromHistory(
+        repositories,
+        selectedTransactionId,
+        editValues,
+        editContext,
+      );
       const nextFilters = buildNextHistoryFilters(historyState.filters, {
         categoryId:
-          historyState.filters.categoryId && historyState.filters.categoryId !== editValues.categoryId
+          historyState.filters.categoryId &&
+          historyState.filters.categoryId !== editValues.categoryId
             ? ''
             : historyState.filters.categoryId,
         monthKey: result.monthKey,
         type:
-          historyState.filters.type !== 'all' && historyState.filters.type !== editValues.type
+          historyState.filters.type !== 'all' &&
+          historyState.filters.type !== editValues.type
             ? 'all'
             : historyState.filters.type,
       });
@@ -229,7 +275,11 @@ export function HistoryScreen() {
       await loadScreen(nextFilters, selectedTransactionId);
       setIsEditing(false);
     } catch (reason: unknown) {
-      setDetailError(reason instanceof Error ? reason.message : 'Nie udało się zapisać zmian transakcji.');
+      setDetailError(
+        reason instanceof Error
+          ? reason.message
+          : 'Nie udało się zapisać zmian transakcji.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -246,7 +296,11 @@ export function HistoryScreen() {
       await removeTransactionFromHistory(repositories, selectedTransactionId);
       await loadScreen(historyState.filters, null);
     } catch (reason: unknown) {
-      setDetailError(reason instanceof Error ? reason.message : 'Nie udało się usunąć transakcji.');
+      setDetailError(
+        reason instanceof Error
+          ? reason.message
+          : 'Nie udało się usunąć transakcji.',
+      );
     } finally {
       setIsDeleting(false);
       setConfirmDelete(false);
@@ -257,14 +311,15 @@ export function HistoryScreen() {
     <View style={styles.headerContent}>
       <View style={styles.hero}>
         <View style={styles.heroCopy}>
-          <Text style={styles.eyebrow}>Update 01.3</Text>
           <Text style={styles.title}>Historia transakcji</Text>
           <Text style={styles.description}>
-            Przeglądaj wpisy, zawężaj wynik do miesiąca i kategorii, a potem popraw albo usuń rekord bez rozjeżdżania
-            budżetów i dashboardu.
+            Filtruj wpisy i poprawiaj je bez rozjeżdżania budżetów.
           </Text>
         </View>
-        <AppButton label="Dodaj nową" onPress={() => navigation.navigate('AddTransaction')} />
+        <AppButton
+          label="Dodaj nową"
+          onPress={() => navigation.navigate('AddTransaction')}
+        />
       </View>
 
       {loadError || error ? (
@@ -355,7 +410,8 @@ export function HistoryScreen() {
         </View>
 
         <Text style={styles.helperText}>
-          Wyniki: {historyState.totalCount} dla {formatMonthKeyLabel(historyState.filters.monthKey)}.
+          Wyniki: {historyState.totalCount} dla{' '}
+          {formatMonthKeyLabel(historyState.filters.monthKey)}.
         </Text>
       </AppCard>
 
@@ -363,8 +419,9 @@ export function HistoryScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Brak historii</Text>
           <Text style={styles.helperText}>
-            Nie ma jeszcze żadnych transakcji. Zacznij od dodania pierwszego wydatku albo przychodu, a historia
-            od razu pokaże szczegóły i pozwoli je później poprawić.
+            Nie ma jeszcze żadnych transakcji. Zacznij od dodania pierwszego
+            wydatku albo przychodu, a historia od razu pokaże szczegóły i
+            pozwoli je później poprawić.
           </Text>
         </AppCard>
       ) : null}
@@ -373,7 +430,8 @@ export function HistoryScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Brak wyników</Text>
           <Text style={styles.helperText}>
-            W tym zestawie filtrów nic nie pasuje. Zmień miesiąc, kategorię albo wyczyść wyszukiwanie.
+            W tym zestawie filtrów nic nie pasuje. Zmień miesiąc, kategorię albo
+            wyczyść wyszukiwanie.
           </Text>
         </AppCard>
       ) : null}
@@ -414,8 +472,11 @@ export function HistoryScreen() {
                 const nextValues = { ...current, ...patch };
 
                 if (patch.type && patch.type !== current.type) {
-                  const availableCategories = editContext.categoriesByType[patch.type];
-                  const hasCategory = availableCategories.some((category) => category.id === nextValues.categoryId);
+                  const availableCategories =
+                    editContext.categoriesByType[patch.type];
+                  const hasCategory = availableCategories.some(
+                    (category) => category.id === nextValues.categoryId,
+                  );
 
                   if (!hasCategory) {
                     nextValues.categoryId = '';
@@ -467,23 +528,45 @@ function TransactionRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.rowCard, active ? styles.rowCardActive : null]}>
+    <Pressable
+      onPress={onPress}
+      style={[styles.rowCard, active ? styles.rowCardActive : null]}
+    >
       <View style={styles.rowTop}>
         <View style={styles.rowCopy}>
-          <Text style={styles.rowTitle}>{item.description?.trim() || item.categoryName || 'Transakcja bez opisu'}</Text>
+          <Text style={styles.rowTitle}>
+            {item.description?.trim() ||
+              item.categoryName ||
+              'Transakcja bez opisu'}
+          </Text>
           <Text style={styles.rowMeta}>
-            {item.categoryName ?? 'Bez kategorii'} · {item.occurredAt.slice(0, 10)} · {getPaymentMethodLabel(item.paymentMethod)}
+            {item.categoryName ?? 'Bez kategorii'} ·{' '}
+            {item.occurredAt.slice(0, 10)} ·{' '}
+            {getPaymentMethodLabel(item.paymentMethod)}
           </Text>
         </View>
-        <Text style={[styles.rowAmount, item.type === 'income' ? styles.rowAmountPositive : styles.rowAmountNegative]}>
+        <Text
+          style={[
+            styles.rowAmount,
+            item.type === 'income'
+              ? styles.rowAmountPositive
+              : styles.rowAmountNegative,
+          ]}
+        >
           {item.type === 'income' ? '+' : '-'}
           {formatMinorUnits(item.amountMinor, item.currencyCode)}
         </Text>
       </View>
 
       <View style={styles.badgeRow}>
-        <Badge label={item.type === 'income' ? 'Przychód' : 'Wydatek'} tone={item.type === 'income' ? 'positive' : 'default'} />
-        <Badge label={item.sourceMeta.shortLabel} tone={item.sourceMeta.isOcr ? 'positive' : 'muted'} />
+        <Badge
+          label={item.type === 'income' ? 'Przychód' : 'Wydatek'}
+          tone={item.type === 'income' ? 'positive' : 'default'}
+        />
+        <Badge
+          label={item.sourceMeta.shortLabel}
+          tone={item.sourceMeta.isOcr ? 'positive' : 'muted'}
+        />
       </View>
     </Pressable>
   );
@@ -523,19 +606,33 @@ function TransactionDetailCard({
   return (
     <AppCard>
       <Text style={styles.sectionTitle}>Szczegóły transakcji</Text>
-      <Text style={styles.detailTitle}>{detail.description?.trim() || detail.categoryName || 'Transakcja bez opisu'}</Text>
+      <Text style={styles.detailTitle}>
+        {detail.description?.trim() ||
+          detail.categoryName ||
+          'Transakcja bez opisu'}
+      </Text>
       <Text style={styles.helperText}>
-        {detail.type === 'income' ? 'Przychód' : 'Wydatek'} · {detail.occurredAt.slice(0, 10)} ·{' '}
+        {detail.type === 'income' ? 'Przychód' : 'Wydatek'} ·{' '}
+        {detail.occurredAt.slice(0, 10)} ·{' '}
         {detail.categoryName ?? 'Bez kategorii'}
       </Text>
 
       {!isEditing ? (
         <>
           <View style={styles.detailGrid}>
-            <DetailMetric label="Kwota" value={formatMinorUnits(detail.amountMinor, detail.currencyCode)} />
-            <DetailMetric label="Metoda" value={getPaymentMethodLabel(detail.paymentMethod)} />
+            <DetailMetric
+              label="Kwota"
+              value={formatMinorUnits(detail.amountMinor, detail.currencyCode)}
+            />
+            <DetailMetric
+              label="Metoda"
+              value={getPaymentMethodLabel(detail.paymentMethod)}
+            />
             <DetailMetric label="Źródło" value={detail.sourceMeta.label} />
-            <DetailMetric label="Aktualizacja" value={detail.updatedAt.slice(0, 10)} />
+            <DetailMetric
+              label="Aktualizacja"
+              value={detail.updatedAt.slice(0, 10)}
+            />
           </View>
 
           {detail.note ? (
@@ -547,18 +644,31 @@ function TransactionDetailCard({
 
           <View style={styles.inlineActions}>
             <InlineButton label="Edytuj" onPress={onStartEdit} />
-            <InlineButton label="Usuń" onPress={onConfirmDelete} tone="danger" />
+            <InlineButton
+              label="Usuń"
+              onPress={onConfirmDelete}
+              tone="danger"
+            />
           </View>
 
           {confirmDelete ? (
             <View style={styles.deleteBox}>
               <Text style={styles.deleteTitle}>Usunąć transakcję?</Text>
               <Text style={styles.helperText}>
-                Rekord zniknie z historii, a budżety i dashboard przeliczą się na podstawie pozostałych danych.
+                Rekord zniknie z historii, a budżety i dashboard przeliczą się
+                na podstawie pozostałych danych.
               </Text>
               <View style={styles.inlineActions}>
-                <InlineButton label={isDeleting ? 'Usuwanie...' : 'Potwierdź'} onPress={onDelete} tone="danger" />
-                <InlineButton label="Anuluj" onPress={onCancelEdit} tone="muted" />
+                <InlineButton
+                  label={isDeleting ? 'Usuwanie...' : 'Potwierdź'}
+                  onPress={onDelete}
+                  tone="danger"
+                />
+                <InlineButton
+                  label="Anuluj"
+                  onPress={onCancelEdit}
+                  tone="muted"
+                />
               </View>
             </View>
           ) : null}
@@ -584,7 +694,9 @@ function TransactionDetailCard({
             placeholder="Np. 34,90"
             value={editValues.amountText}
           />
-          {editErrors.amountText ? <Text style={styles.errorText}>{editErrors.amountText}</Text> : null}
+          {editErrors.amountText ? (
+            <Text style={styles.errorText}>{editErrors.amountText}</Text>
+          ) : null}
 
           <FieldLabel label="Kategoria" required />
           <View style={styles.chipGroup}>
@@ -597,7 +709,9 @@ function TransactionDetailCard({
               />
             ))}
           </View>
-          {editErrors.categoryId ? <Text style={styles.errorText}>{editErrors.categoryId}</Text> : null}
+          {editErrors.categoryId ? (
+            <Text style={styles.errorText}>{editErrors.categoryId}</Text>
+          ) : null}
 
           <FieldLabel label="Data" required />
           <AppInput
@@ -605,7 +719,9 @@ function TransactionDetailCard({
             placeholder="RRRR-MM-DD"
             value={editValues.date}
           />
-          {editErrors.date ? <Text style={styles.errorText}>{editErrors.date}</Text> : null}
+          {editErrors.date ? (
+            <Text style={styles.errorText}>{editErrors.date}</Text>
+          ) : null}
 
           <FieldLabel label="Metoda płatności" />
           <View style={styles.chipGroup}>
@@ -614,7 +730,9 @@ function TransactionDetailCard({
                 key={option.value}
                 active={editValues.paymentMethod === option.value}
                 label={option.label}
-                onPress={() => onEditValueChange({ paymentMethod: option.value })}
+                onPress={() =>
+                  onEditValueChange({ paymentMethod: option.value })
+                }
               />
             ))}
           </View>
@@ -635,7 +753,10 @@ function TransactionDetailCard({
           />
 
           <View style={styles.inlineActions}>
-            <InlineButton label={isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'} onPress={onSave} />
+            <InlineButton
+              label={isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+              onPress={onSave}
+            />
             <InlineButton label="Anuluj" onPress={onCancelEdit} tone="muted" />
           </View>
         </>
@@ -655,7 +776,13 @@ function DetailMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-function FieldLabel({ label, required = false }: { label: string; required?: boolean }) {
+function FieldLabel({
+  label,
+  required = false,
+}: {
+  label: string;
+  required?: boolean;
+}) {
   return (
     <Text style={styles.fieldLabel}>
       {label}
@@ -674,8 +801,13 @@ function Chip({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}>
-      <Text style={[styles.chipLabel, active ? styles.chipLabelActive : null]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+    >
+      <Text style={[styles.chipLabel, active ? styles.chipLabelActive : null]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -711,7 +843,13 @@ function InlineButton({
   );
 }
 
-function Badge({ label, tone }: { label: string; tone: 'default' | 'positive' | 'muted' }) {
+function Badge({
+  label,
+  tone,
+}: {
+  label: string;
+  tone: 'default' | 'positive' | 'muted';
+}) {
   return (
     <View
       style={[
@@ -733,8 +871,12 @@ function Badge({ label, tone }: { label: string; tone: 'default' | 'positive' | 
   );
 }
 
-function getPaymentMethodLabel(value: EditableTransactionValues['paymentMethod']) {
-  return paymentMethodOptions.find((item) => item.value === value)?.label ?? 'Inne';
+function getPaymentMethodLabel(
+  value: EditableTransactionValues['paymentMethod'],
+) {
+  return (
+    paymentMethodOptions.find((item) => item.value === value)?.label ?? 'Inne'
+  );
 }
 
 function resolveSelectedTransactionId(
@@ -742,11 +884,17 @@ function resolveSelectedTransactionId(
   preferredSelectionId?: string | null,
   currentSelectionId?: string | null,
 ) {
-  if (preferredSelectionId && items.some((item) => item.id === preferredSelectionId)) {
+  if (
+    preferredSelectionId &&
+    items.some((item) => item.id === preferredSelectionId)
+  ) {
     return preferredSelectionId;
   }
 
-  if (currentSelectionId && items.some((item) => item.id === currentSelectionId)) {
+  if (
+    currentSelectionId &&
+    items.some((item) => item.id === currentSelectionId)
+  ) {
     return currentSelectionId;
   }
 
@@ -850,12 +998,6 @@ const styles = StyleSheet.create({
     color: colors.danger,
     fontSize: typography.subtitle,
     fontWeight: '700',
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
   fieldLabel: {
     color: colors.text,

@@ -1,4 +1,5 @@
 export const SECURITY_PIN_LENGTH = 4;
+export const SECURITY_SESSION_GRACE_PERIOD_MINUTES = 10;
 
 export type SecuritySettings = {
   hasPin: boolean;

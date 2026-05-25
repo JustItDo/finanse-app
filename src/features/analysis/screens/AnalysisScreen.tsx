@@ -47,7 +47,11 @@ export function AnalysisScreen() {
           return;
         }
 
-        setLoadError(reason instanceof Error ? reason.message : 'Nie udało się wczytać analiz.');
+        setLoadError(
+          reason instanceof Error
+            ? reason.message
+            : 'Nie udało się wczytać analiz.',
+        );
       });
 
     return () => {
@@ -66,11 +70,10 @@ export function AnalysisScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Update 03.1</Text>
         <Text style={styles.title}>Analizy</Text>
         <Text style={styles.description}>
-          Tu widać, na co realnie idą pieniądze, które kategorie kosztują najwięcej i jak rozkładają się wydatki
-          w czasie.
+          Tu szybko widać, gdzie uciekają pieniądze i kiedy wydatki się
+          kumulują.
         </Text>
       </View>
 
@@ -79,9 +82,17 @@ export function AnalysisScreen() {
           <Pressable
             key={option.value}
             onPress={() => setRange(option.value)}
-            style={[styles.rangeChip, range === option.value ? styles.rangeChipActive : null]}
+            style={[
+              styles.rangeChip,
+              range === option.value ? styles.rangeChipActive : null,
+            ]}
           >
-            <Text style={[styles.rangeChipLabel, range === option.value ? styles.rangeChipLabelActive : null]}>
+            <Text
+              style={[
+                styles.rangeChipLabel,
+                range === option.value ? styles.rangeChipLabelActive : null,
+              ]}
+            >
               {option.label}
             </Text>
           </Pressable>
@@ -101,9 +112,21 @@ export function AnalysisScreen() {
           {analysis.monthLabel} • {analysis.monthKey}
         </Text>
         <View style={styles.metricsGrid}>
-          <Metric label="Wydatki" value={formatMinorUnits(analysis.totalExpenseMinor, analysis.currencyCode)} />
-          <Metric label="Transakcje" value={String(analysis.transactionsCount)} />
-          <Metric label="Dni z wydatkami" value={String(analysis.expenseDaysCount)} />
+          <Metric
+            label="Wydatki"
+            value={formatMinorUnits(
+              analysis.totalExpenseMinor,
+              analysis.currencyCode,
+            )}
+          />
+          <Metric
+            label="Transakcje"
+            value={String(analysis.transactionsCount)}
+          />
+          <Metric
+            label="Dni z wydatkami"
+            value={String(analysis.expenseDaysCount)}
+          />
           <Metric
             label="Największa kategoria"
             value={
@@ -119,8 +142,8 @@ export function AnalysisScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Brak danych wydatkowych</Text>
           <Text style={styles.helperText}>
-            W tym zakresie nie ma jeszcze wydatków. Po dodaniu transakcji analizy pokażą od razu rozkład kategorii
-            i trend dzienny.
+            W tym zakresie nie ma jeszcze wydatków. Po dodaniu transakcji
+            analizy pokażą od razu rozkład kategorii i trend dzienny.
           </Text>
         </AppCard>
       ) : (
@@ -128,7 +151,8 @@ export function AnalysisScreen() {
           <AppCard>
             <Text style={styles.sectionTitle}>Na co idą pieniądze</Text>
             <Text style={styles.helperText}>
-              Wykres pokazuje udział największych kategorii wydatkowych w całym miesiącu.
+              Wykres pokazuje udział największych kategorii wydatkowych w całym
+              miesiącu.
             </Text>
             <CategoryStackedBar items={analysis.categoryChart} />
             <View style={styles.legendList}>
@@ -143,9 +167,12 @@ export function AnalysisScreen() {
           </AppCard>
 
           <AppCard>
-            <Text style={styles.sectionTitle}>Największe kategorie kosztów</Text>
+            <Text style={styles.sectionTitle}>
+              Największe kategorie kosztów
+            </Text>
             <Text style={styles.helperText}>
-              Najpierw pokazujemy obszary, które najmocniej ciągną wydatki w tym zakresie.
+              Najpierw pokazujemy obszary, które najmocniej ciągną wydatki w tym
+              zakresie.
             </Text>
             <View style={styles.topCategoryList}>
               {analysis.topCategories.map((item, index) => (
@@ -162,9 +189,13 @@ export function AnalysisScreen() {
           <AppCard>
             <Text style={styles.sectionTitle}>Trend wydatków w czasie</Text>
             <Text style={styles.helperText}>
-              Każdy słupek to jeden dzień miesiąca. To szybki widok, kiedy wydatki naprawdę się kumulują.
+              Każdy słupek to jeden dzień miesiąca. To szybki widok, kiedy
+              wydatki naprawdę się kumulują.
             </Text>
-            <TrendChart currencyCode={analysis.currencyCode} items={analysis.trend} />
+            <TrendChart
+              currencyCode={analysis.currencyCode}
+              items={analysis.trend}
+            />
           </AppCard>
         </>
       )}
@@ -201,11 +232,18 @@ function CategoryBreakdownRow({
   return (
     <View style={styles.legendRow}>
       <View style={styles.legendIdentity}>
-        <View style={[styles.legendSwatch, { backgroundColor: item.color ?? colors.primary }]} />
+        <View
+          style={[
+            styles.legendSwatch,
+            { backgroundColor: item.color ?? colors.primary },
+          ]}
+        />
         <Text style={styles.legendLabel}>{item.name}</Text>
       </View>
       <View style={styles.legendValues}>
-        <Text style={styles.legendAmount}>{formatMinorUnits(item.totalMinor, currencyCode)}</Text>
+        <Text style={styles.legendAmount}>
+          {formatMinorUnits(item.totalMinor, currencyCode)}
+        </Text>
         <Text style={styles.legendPercent}>{item.sharePercent}%</Text>
       </View>
     </View>
@@ -224,15 +262,35 @@ function TopCategoryRow({
   return (
     <View style={styles.topCategoryRow}>
       <View style={styles.topCategoryIdentity}>
-        <View style={[styles.rankBadge, { backgroundColor: item.color ? `${item.color}20` : colors.primarySoft }]}>
-          <Text style={[styles.rankBadgeLabel, { color: item.color ?? colors.primary }]}>{rank}</Text>
+        <View
+          style={[
+            styles.rankBadge,
+            {
+              backgroundColor: item.color
+                ? `${item.color}20`
+                : colors.primarySoft,
+            },
+          ]}
+        >
+          <Text
+            style={[
+              styles.rankBadgeLabel,
+              { color: item.color ?? colors.primary },
+            ]}
+          >
+            {rank}
+          </Text>
         </View>
         <View style={styles.topCategoryCopy}>
           <Text style={styles.topCategoryName}>{item.name}</Text>
-          <Text style={styles.topCategoryMeta}>{item.sharePercent}% wszystkich wydatków</Text>
+          <Text style={styles.topCategoryMeta}>
+            {item.sharePercent}% wszystkich wydatków
+          </Text>
         </View>
       </View>
-      <Text style={styles.topCategoryAmount}>{formatMinorUnits(item.totalMinor, currencyCode)}</Text>
+      <Text style={styles.topCategoryAmount}>
+        {formatMinorUnits(item.totalMinor, currencyCode)}
+      </Text>
     </View>
   );
 }
@@ -261,7 +319,9 @@ function TrendChart({
             </View>
             <Text style={styles.trendLabel}>{item.dayLabel}</Text>
             <Text style={styles.trendValue}>
-              {item.totalMinor > 0 ? formatMinorUnits(item.totalMinor, currencyCode) : '—'}
+              {item.totalMinor > 0
+                ? formatMinorUnits(item.totalMinor, currencyCode)
+                : '—'}
             </Text>
           </View>
         ))}
@@ -290,13 +350,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: spacing.sm,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   title: {
     color: colors.text,

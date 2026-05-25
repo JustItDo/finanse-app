@@ -86,7 +86,9 @@ export function BudgetsScreen() {
   const monthKey = getCurrentMonthKey();
 
   const [setup, setSetup] = useState<BudgetSetupState | null>(null);
-  const [categoryDrafts, setCategoryDrafts] = useState<Record<string, CategoryDraft>>({});
+  const [categoryDrafts, setCategoryDrafts] = useState<
+    Record<string, CategoryDraft>
+  >({});
   const [monthBudgetEnabled, setMonthBudgetEnabled] = useState(false);
   const [monthBudgetText, setMonthBudgetText] = useState('');
   const [targetSavingsText, setTargetSavingsText] = useState('');
@@ -122,7 +124,11 @@ export function BudgetsScreen() {
         }
       } catch (error: unknown) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Nie udało się wczytać budżetów.');
+          setErrorMessage(
+            error instanceof Error
+              ? error.message
+              : 'Nie udało się wczytać budżetów.',
+          );
         }
       }
     };
@@ -143,16 +149,24 @@ export function BudgetsScreen() {
     setIsSaving(true);
 
     try {
-      const parsedValue = monthBudgetEnabled ? parseMoneyToMinorUnits(monthBudgetText) : null;
+      const parsedValue = monthBudgetEnabled
+        ? parseMoneyToMinorUnits(monthBudgetText)
+        : null;
       const parsedTargetSavings = monthBudgetEnabled
-        ? (targetSavingsText.trim() ? parseMoneyToMinorUnits(targetSavingsText) : null)
+        ? targetSavingsText.trim()
+          ? parseMoneyToMinorUnits(targetSavingsText)
+          : null
         : null;
 
       if (monthBudgetEnabled && parsedValue === null) {
         throw new Error('Podaj poprawną kwotę budżetu miesiąca.');
       }
 
-      if (monthBudgetEnabled && targetSavingsText.trim() && parsedTargetSavings === null) {
+      if (
+        monthBudgetEnabled &&
+        targetSavingsText.trim() &&
+        parsedTargetSavings === null
+      ) {
         throw new Error('Podaj poprawny miesięczny cel oszczędności.');
       }
 
@@ -165,7 +179,11 @@ export function BudgetsScreen() {
 
       await reload();
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : 'Nie udało się zapisać budżetu miesiąca.');
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się zapisać budżetu miesiąca.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -188,11 +206,17 @@ export function BudgetsScreen() {
         throw new Error('Nazwa kategorii nie może być pusta.');
       }
 
-      const isExpense = item.transactionType === 'expense' || item.transactionType === 'both';
-      const parsedLimit = isExpense && draft.limitEnabled ? parseMoneyToMinorUnits(draft.limitText) : null;
+      const isExpense =
+        item.transactionType === 'expense' || item.transactionType === 'both';
+      const parsedLimit =
+        isExpense && draft.limitEnabled
+          ? parseMoneyToMinorUnits(draft.limitText)
+          : null;
 
       if (isExpense && draft.limitEnabled && parsedLimit === null) {
-        throw new Error(`Podaj poprawny limit dla kategorii „${item.category.name}”.`);
+        throw new Error(
+          `Podaj poprawny limit dla kategorii „${item.category.name}”.`,
+        );
       }
 
       await saveCategoryConfig(repositories, {
@@ -207,7 +231,11 @@ export function BudgetsScreen() {
 
       await reload();
     } catch (error: unknown) {
-      setErrorMessage(error instanceof Error ? error.message : 'Nie udało się zapisać kategorii.');
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się zapisać kategorii.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -244,11 +272,9 @@ export function BudgetsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Update 03.0</Text>
         <Text style={styles.title}>Budżety</Text>
         <Text style={styles.description}>
-          Najpierw widać problemy, potem stabilne kategorie. Wszystkie limity i stany budżetu korzystają z
-          tej samej warstwy danych co dashboard, historia i wpis ręczny.
+          Najpierw widać ryzyka, potem stabilne kategorie.
         </Text>
       </View>
 
@@ -262,8 +288,8 @@ export function BudgetsScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Start budżetów</Text>
           <Text style={styles.helperText}>
-            Zacznij od budżetu miesiąca i limitów dla kilku głównych kategorii wydatkowych. Resztę możesz
-            zostawić aktywną bez limitu.
+            Zacznij od budżetu miesiąca i limitów dla kilku głównych kategorii
+            wydatkowych. Resztę możesz zostawić aktywną bez limitu.
           </Text>
         </AppCard>
       ) : null}
@@ -273,14 +299,24 @@ export function BudgetsScreen() {
           <View style={styles.cardHeaderCopy}>
             <Text style={styles.sectionTitle}>Miesiąc pod kontrolą</Text>
             <Text style={styles.helperText}>
-              Tu widać, czy cały miesiąc mieści się w planie i ile kategorii wymaga już uwagi.
+              Tu widać, czy cały miesiąc mieści się w planie i ile kategorii
+              wymaga już uwagi.
             </Text>
           </View>
-          <StatusBadge label={getMonthStatusLabel(setup.monthlyBudgetStatus)} status={setup.monthlyBudgetStatus} />
+          <StatusBadge
+            label={getMonthStatusLabel(setup.monthlyBudgetStatus)}
+            status={setup.monthlyBudgetStatus}
+          />
         </View>
 
         <View style={styles.metricsGrid}>
-          <Metric label="Wydane" value={formatMinorUnits(setup.monthlySpentMinor, setup.currencyCode)} />
+          <Metric
+            label="Wydane"
+            value={formatMinorUnits(
+              setup.monthlySpentMinor,
+              setup.currencyCode,
+            )}
+          />
           <Metric
             label="Budżet miesiąca"
             value={
@@ -294,12 +330,24 @@ export function BudgetsScreen() {
             value={
               setup.monthlyRemainingMinor === null
                 ? 'Bez limitu'
-                : formatMinorUnits(setup.monthlyRemainingMinor, setup.currencyCode)
+                : formatMinorUnits(
+                    setup.monthlyRemainingMinor,
+                    setup.currencyCode,
+                  )
             }
           />
-          <Metric label="Kategorie ryzyka" value={String(setup.categoriesAtRiskCount)} />
-          <Metric label="Aktywne wydatki" value={String(setup.activeExpenseCategoriesCount)} />
-          <Metric label="Bez limitu" value={String(setup.uncappedExpenseCategoriesCount)} />
+          <Metric
+            label="Kategorie ryzyka"
+            value={String(setup.categoriesAtRiskCount)}
+          />
+          <Metric
+            label="Aktywne wydatki"
+            value={String(setup.activeExpenseCategoriesCount)}
+          />
+          <Metric
+            label="Bez limitu"
+            value={String(setup.uncappedExpenseCategoriesCount)}
+          />
           <Metric
             label="Cel oszczędności"
             value={
@@ -313,10 +361,17 @@ export function BudgetsScreen() {
         {setup.monthlyBudgetUsageRatio !== null ? (
           <>
             <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Wykorzystanie budżetu miesiąca</Text>
-              <Text style={styles.progressValue}>{formatUsage(setup.monthlyBudgetUsagePercent)}</Text>
+              <Text style={styles.progressLabel}>
+                Wykorzystanie budżetu miesiąca
+              </Text>
+              <Text style={styles.progressValue}>
+                {formatUsage(setup.monthlyBudgetUsagePercent)}
+              </Text>
             </View>
-            <ProgressBar ratio={setup.monthlyBudgetUsageRatio} status={setup.monthlyBudgetStatus} />
+            <ProgressBar
+              ratio={setup.monthlyBudgetUsageRatio}
+              status={setup.monthlyBudgetStatus}
+            />
           </>
         ) : null}
       </AppCard>
@@ -324,14 +379,19 @@ export function BudgetsScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Ustawienia budżetu miesiąca</Text>
         <Text style={styles.helperText}>
-          Budżet miesiąca jest opcjonalny. Cel oszczędności w MVP trzymamy w tym samym planie miesiąca, więc
-          działa tylko przy aktywnym budżecie miesiąca.
+          Budżet miesiąca jest opcjonalny. Cel oszczędności w MVP trzymamy w tym
+          samym planie miesiąca, więc działa tylko przy aktywnym budżecie
+          miesiąca.
         </Text>
 
         <View style={styles.row}>
           <ToggleChip
             active={monthBudgetEnabled}
-            label={monthBudgetEnabled ? 'Budżet miesiąca aktywny' : 'Budżet miesiąca wyłączony'}
+            label={
+              monthBudgetEnabled
+                ? 'Budżet miesiąca aktywny'
+                : 'Budżet miesiąca wyłączony'
+            }
             onPress={() => setMonthBudgetEnabled((value) => !value)}
           />
         </View>
@@ -352,7 +412,10 @@ export function BudgetsScreen() {
           value={targetSavingsText}
         />
 
-        <AppButton label={isSaving ? 'Zapisywanie...' : 'Zapisz budżet miesiąca'} onPress={saveMonthBudget} />
+        <AppButton
+          label={isSaving ? 'Zapisywanie...' : 'Zapisz budżet miesiąca'}
+          onPress={saveMonthBudget}
+        />
       </AppCard>
 
       {setup.problemExpenseCategories.length > 0 ? (
@@ -412,7 +475,8 @@ export function BudgetsScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Kategorie przychodów</Text>
         <Text style={styles.helperText}>
-          W MVP przychody zostają proste: widać realne wpływy, bez osobnych celów i limitów.
+          W MVP przychody zostają proste: widać realne wpływy, bez osobnych
+          celów i limitów.
         </Text>
 
         <View style={styles.categoryList}>
@@ -503,7 +567,8 @@ function CategoryBudgetCard({
   onSave: () => void;
 }) {
   const isIncomeCategory = item.transactionType === 'income';
-  const supportsBudget = item.transactionType === 'expense' || item.transactionType === 'both';
+  const supportsBudget =
+    item.transactionType === 'expense' || item.transactionType === 'both';
 
   return (
     <View style={styles.categoryCard}>
@@ -518,14 +583,19 @@ function CategoryBudgetCard({
                 : `Wydano: ${formatMinorUnits(item.spentMinor, currencyCode)} • Limit: ${formatMinorUnits(item.budgetLimitMinor, currencyCode)}`}
           </Text>
         </View>
-        <StatusBadge label={getCategoryStatusLabel(item.status)} status={item.status} />
+        <StatusBadge
+          label={getCategoryStatusLabel(item.status)}
+          status={item.status}
+        />
       </View>
 
       {!isIncomeCategory && item.usageRatio !== null ? (
         <>
           <View style={styles.progressHeader}>
             <Text style={styles.progressLabel}>Wykorzystanie kategorii</Text>
-            <Text style={styles.progressValue}>{formatUsage(item.usagePercent)}</Text>
+            <Text style={styles.progressValue}>
+              {formatUsage(item.usagePercent)}
+            </Text>
           </View>
           <ProgressBar ratio={item.usageRatio} status={item.status} />
         </>
@@ -548,7 +618,13 @@ function CategoryBudgetCard({
         />
         <MiniMetric
           label={isIncomeCategory ? 'Aktywność' : 'Wykorzystanie'}
-          value={isIncomeCategory ? (item.isActive ? 'Aktywna' : 'Nieaktywna') : formatUsage(item.usagePercent)}
+          value={
+            isIncomeCategory
+              ? item.isActive
+                ? 'Aktywna'
+                : 'Nieaktywna'
+              : formatUsage(item.usagePercent)
+          }
         />
       </View>
 
@@ -602,9 +678,13 @@ function CategoryBudgetCard({
       ) : null}
 
       {item.status === 'over_budget' ? (
-        <Text style={styles.errorText}>Ta kategoria jest już ponad limitem.</Text>
+        <Text style={styles.errorText}>
+          Ta kategoria jest już ponad limitem.
+        </Text>
       ) : item.status === 'warning' ? (
-        <Text style={styles.warningText}>Ta kategoria zbliża się do limitu i wymaga uwagi.</Text>
+        <Text style={styles.warningText}>
+          Ta kategoria zbliża się do limitu i wymaga uwagi.
+        </Text>
       ) : null}
 
       <AppButton label="Zapisz kategorię" onPress={onSave} />
@@ -624,9 +704,19 @@ function ToggleChip({
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.toggleChip, active ? styles.toggleChipActive : styles.toggleChipInactive]}
+      style={[
+        styles.toggleChip,
+        active ? styles.toggleChipActive : styles.toggleChipInactive,
+      ]}
     >
-      <Text style={[styles.toggleChipLabel, active ? styles.toggleChipLabelActive : undefined]}>{label}</Text>
+      <Text
+        style={[
+          styles.toggleChipLabel,
+          active ? styles.toggleChipLabelActive : undefined,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -640,7 +730,8 @@ function StatusBadge({
 }) {
   const isDanger = status === 'over_budget';
   const isWarning = status === 'warning';
-  const isMuted = status === 'no_budget' || status === 'no_limit' || status === 'inactive';
+  const isMuted =
+    status === 'no_budget' || status === 'no_limit' || status === 'inactive';
 
   return (
     <View
@@ -656,7 +747,9 @@ function StatusBadge({
           styles.statusBadgeLabel,
           isDanger ? styles.statusBadgeLabelDanger : null,
           isWarning ? styles.statusBadgeLabelWarning : null,
-          isMuted ? styles.statusBadgeLabelMuted : styles.statusBadgeLabelPositive,
+          isMuted
+            ? styles.statusBadgeLabelMuted
+            : styles.statusBadgeLabelPositive,
         ]}
       >
         {label}
@@ -721,13 +814,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: spacing.sm,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   title: {
     color: colors.text,

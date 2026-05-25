@@ -4,7 +4,11 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
-import { loadDashboardState, type DashboardCategoryHighlight, type DashboardState } from '@/src/features/dashboard/data/dashboard';
+import {
+  loadDashboardState,
+  type DashboardCategoryHighlight,
+  type DashboardState,
+} from '@/src/features/dashboard/data/dashboard';
 import type { RootTabParamList } from '@/src/navigation/AppNavigator';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
@@ -47,7 +51,11 @@ export function DashboardScreen() {
           return;
         }
 
-        setLoadError(reason instanceof Error ? reason.message : 'Nie udało się wczytać dashboardu.');
+        setLoadError(
+          reason instanceof Error
+            ? reason.message
+            : 'Nie udało się wczytać dashboardu.',
+        );
       });
 
     return () => {
@@ -66,34 +74,48 @@ export function DashboardScreen() {
   const currentMonthKey = getCurrentMonthKey();
   const isCurrentMonth = dashboard.monthKey === currentMonthKey;
   const isMonthlyBudgetOver =
-    dashboard.monthlyRemainingMinor !== null && dashboard.monthlyRemainingMinor < 0;
+    dashboard.monthlyRemainingMinor !== null &&
+    dashboard.monthlyRemainingMinor < 0;
 
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
         <View style={styles.heroHeader}>
           <View style={styles.heroCopy}>
-            <Text style={styles.eyebrow}>Update 01.2</Text>
-            <Text style={styles.title}>Dashboard MVP</Text>
+            <Text style={styles.title}>Dashboard</Text>
             <Text style={styles.description}>
-              Szybki obraz miesiąca: ile wydałeś, ile zostało i gdzie plan zaczyna się rozjeżdżać.
+              Najważniejsze liczby miesiąca w jednym miejscu.
             </Text>
           </View>
-          <AppButton label="Dodaj wydatek" onPress={() => navigation.navigate('AddTransaction')} />
+          <AppButton
+            label="Dodaj wydatek"
+            onPress={() => navigation.navigate('AddTransaction')}
+          />
         </View>
 
         <View style={styles.monthSwitcher}>
-          <MonthButton label="‹" onPress={() => changeMonth(shiftMonthKey(monthKey, -1))} />
+          <MonthButton
+            label="‹"
+            onPress={() => changeMonth(shiftMonthKey(monthKey, -1))}
+          />
           <View style={styles.monthLabelBox}>
             <Text style={styles.monthLabel}>{dashboard.monthLabel}</Text>
             <Text style={styles.monthKey}>{dashboard.monthKey}</Text>
           </View>
-          <MonthButton label="›" onPress={() => changeMonth(shiftMonthKey(monthKey, 1))} />
+          <MonthButton
+            label="›"
+            onPress={() => changeMonth(shiftMonthKey(monthKey, 1))}
+          />
         </View>
 
         {!isCurrentMonth ? (
-          <Pressable onPress={() => changeMonth(currentMonthKey)} style={styles.currentMonthButton}>
-            <Text style={styles.currentMonthButtonLabel}>Wróć do bieżącego miesiąca</Text>
+          <Pressable
+            onPress={() => changeMonth(currentMonthKey)}
+            style={styles.currentMonthButton}
+          >
+            <Text style={styles.currentMonthButtonLabel}>
+              Wróć do bieżącego miesiąca
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -111,17 +133,26 @@ export function DashboardScreen() {
           <MetricCard
             label="Przychody"
             tone="positive"
-            value={formatMinorUnits(dashboard.incomeMinor, dashboard.currencyCode)}
+            value={formatMinorUnits(
+              dashboard.incomeMinor,
+              dashboard.currencyCode,
+            )}
           />
           <MetricCard
             label="Wydatki"
             tone="default"
-            value={formatMinorUnits(dashboard.expenseMinor, dashboard.currencyCode)}
+            value={formatMinorUnits(
+              dashboard.expenseMinor,
+              dashboard.currencyCode,
+            )}
           />
           <MetricCard
             label="Bilans"
             tone={dashboard.balanceMinor < 0 ? 'danger' : 'positive'}
-            value={formatMinorUnits(dashboard.balanceMinor, dashboard.currencyCode)}
+            value={formatMinorUnits(
+              dashboard.balanceMinor,
+              dashboard.currencyCode,
+            )}
           />
           <MetricCard
             label="Z budżetu zostało"
@@ -129,7 +160,10 @@ export function DashboardScreen() {
             value={
               dashboard.monthlyRemainingMinor === null
                 ? 'Brak limitu'
-                : formatMinorUnits(dashboard.monthlyRemainingMinor, dashboard.currencyCode)
+                : formatMinorUnits(
+                    dashboard.monthlyRemainingMinor,
+                    dashboard.currencyCode,
+                  )
             }
           />
         </View>
@@ -144,31 +178,60 @@ export function DashboardScreen() {
         <Text style={styles.sectionTitle}>Cel oszczędności</Text>
         {dashboard.savingsProgress.goalMinor === null ? (
           <Text style={styles.helperText}>
-            Miesięczny cel oszczędności nie jest jeszcze ustawiony. Dodasz go w zakładce Budżety razem z planem
-            miesiąca.
+            Miesięczny cel oszczędności nie jest jeszcze ustawiony. Dodasz go w
+            zakładce Budżety razem z planem miesiąca.
           </Text>
         ) : (
           <>
             <View style={styles.metricsGrid}>
               <MetricCard
                 label="Zaoszczędzono"
-                tone={dashboard.savingsProgress.currentSavingsMinor < 0 ? 'danger' : 'positive'}
-                value={formatMinorUnits(dashboard.savingsProgress.currentSavingsMinor, dashboard.currencyCode)}
+                tone={
+                  dashboard.savingsProgress.currentSavingsMinor < 0
+                    ? 'danger'
+                    : 'positive'
+                }
+                value={formatMinorUnits(
+                  dashboard.savingsProgress.currentSavingsMinor,
+                  dashboard.currencyCode,
+                )}
               />
               <MetricCard
                 label="Cel miesiąca"
                 tone="default"
-                value={formatMinorUnits(dashboard.savingsProgress.goalMinor, dashboard.currencyCode)}
+                value={formatMinorUnits(
+                  dashboard.savingsProgress.goalMinor,
+                  dashboard.currencyCode,
+                )}
               />
               <MetricCard
                 label="Status"
-                tone={dashboard.savingsProgress.status === 'goal_met' ? 'positive' : 'danger'}
-                value={dashboard.savingsProgress.status === 'goal_met' ? 'Cel osiągnięty' : 'Poniżej planu'}
+                tone={
+                  dashboard.savingsProgress.status === 'goal_met'
+                    ? 'positive'
+                    : 'danger'
+                }
+                value={
+                  dashboard.savingsProgress.status === 'goal_met'
+                    ? 'Cel osiągnięty'
+                    : 'Poniżej planu'
+                }
               />
               <MetricCard
-                label={dashboard.savingsProgress.status === 'goal_met' ? 'Nadwyżka' : 'Brakuje'}
-                tone={dashboard.savingsProgress.status === 'goal_met' ? 'positive' : 'default'}
-                value={formatMinorUnits(Math.abs(dashboard.savingsProgress.remainingMinor ?? 0), dashboard.currencyCode)}
+                label={
+                  dashboard.savingsProgress.status === 'goal_met'
+                    ? 'Nadwyżka'
+                    : 'Brakuje'
+                }
+                tone={
+                  dashboard.savingsProgress.status === 'goal_met'
+                    ? 'positive'
+                    : 'default'
+                }
+                value={formatMinorUnits(
+                  Math.abs(dashboard.savingsProgress.remainingMinor ?? 0),
+                  dashboard.currencyCode,
+                )}
               />
             </View>
 
@@ -194,7 +257,8 @@ export function DashboardScreen() {
             </View>
 
             <Text style={styles.helperText}>
-              Cel oszczędności liczymy prosto jako `przychody - wydatki` dla tego miesiąca.
+              Cel oszczędności liczymy prosto jako `przychody - wydatki` dla
+              tego miesiąca.
             </Text>
           </>
         )}
@@ -204,8 +268,9 @@ export function DashboardScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Pusty start</Text>
           <Text style={styles.helperText}>
-            Ten miesiąc nie ma jeszcze transakcji ani ustawionych limitów. Zacznij od budżetu albo dodaj pierwszy
-            wydatek, żeby dashboard zaczął pokazywać realny obraz miesiąca.
+            Ten miesiąc nie ma jeszcze transakcji ani ustawionych limitów.
+            Zacznij od budżetu albo dodaj pierwszy wydatek, żeby dashboard
+            zaczął pokazywać realny obraz miesiąca.
           </Text>
         </AppCard>
       ) : null}
@@ -214,8 +279,9 @@ export function DashboardScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Budżet gotowy, brak wydatków</Text>
           <Text style={styles.helperText}>
-            Masz już ustawione limity, ale w tym miesiącu nie zapisano jeszcze transakcji. Po pierwszym wydatku
-            zobaczysz od razu wpływ na plan kategorii i miesiąca.
+            Masz już ustawione limity, ale w tym miesiącu nie zapisano jeszcze
+            transakcji. Po pierwszym wydatku zobaczysz od razu wpływ na plan
+            kategorii i miesiąca.
           </Text>
         </AppCard>
       ) : null}
@@ -224,8 +290,9 @@ export function DashboardScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Brak guardrailów budżetowych</Text>
           <Text style={styles.helperText}>
-            Dashboard pokaże bilans i wydatki bez budżetu, ale pytanie „ile zostało” będzie dużo mocniejsze po
-            ustawieniu budżetu miesiąca albo limitów kategorii w zakładce Budżety.
+            Dashboard pokaże bilans i wydatki bez budżetu, ale pytanie „ile
+            zostało” będzie dużo mocniejsze po ustawieniu budżetu miesiąca albo
+            limitów kategorii w zakładce Budżety.
           </Text>
         </AppCard>
       ) : null}
@@ -250,17 +317,19 @@ export function DashboardScreen() {
       ) : null}
 
       <AppCard>
-        <Text style={styles.sectionTitle}>Najważniejsze kategorie budżetowe</Text>
+        <Text style={styles.sectionTitle}>
+          Najważniejsze kategorie budżetowe
+        </Text>
         <Text style={styles.helperText}>
-          Najpierw pokazujemy przekroczenia i kategorie blisko limitu, żeby dało się zeskanować problem bez
-          przechodzenia do pełnych budżetów.
+          Najpierw pokazujemy przekroczenia i kategorie blisko limitu, żeby dało
+          się zeskanować problem bez przechodzenia do pełnych budżetów.
         </Text>
 
         {dashboard.highlightCategories.length === 0 ? (
           <View style={styles.emptyCategoryState}>
             <Text style={styles.helperText}>
-              Brak skonfigurowanych limitów kategorii dla tego miesiąca. Po ich dodaniu zobaczysz tu najważniejsze
-              obszary budżetu.
+              Brak skonfigurowanych limitów kategorii dla tego miesiąca. Po ich
+              dodaniu zobaczysz tu najważniejsze obszary budżetu.
             </Text>
           </View>
         ) : (
@@ -276,15 +345,21 @@ export function DashboardScreen() {
         )}
 
         <Text style={styles.footnoteText}>
-          Limity kategorii aktywne: {dashboard.categoriesWithBudgetCount}. Transakcje w miesiącu:{' '}
-          {dashboard.transactionsCount}.
+          Limity kategorii aktywne: {dashboard.categoriesWithBudgetCount}.
+          Transakcje w miesiącu: {dashboard.transactionsCount}.
         </Text>
       </AppCard>
     </ScrollView>
   );
 }
 
-function MonthButton({ label, onPress }: { label: string; onPress: () => void }) {
+function MonthButton({
+  label,
+  onPress,
+}: {
+  label: string;
+  onPress: () => void;
+}) {
   return (
     <Pressable onPress={onPress} style={styles.monthButton}>
       <Text style={styles.monthButtonLabel}>{label}</Text>
@@ -337,7 +412,12 @@ function CategoryBudgetRow({
     <View style={styles.categoryCard}>
       <View style={styles.categoryHeader}>
         <View style={styles.categoryIdentity}>
-          <View style={[styles.categoryIconWrap, item.color ? { backgroundColor: `${item.color}20` } : null]}>
+          <View
+            style={[
+              styles.categoryIconWrap,
+              item.color ? { backgroundColor: `${item.color}20` } : null,
+            ]}
+          >
             {item.icon ? (
               <FontAwesome5
                 color={item.color ?? colors.primary}
@@ -350,7 +430,8 @@ function CategoryBudgetRow({
           <View style={styles.categoryCopy}>
             <Text style={styles.categoryName}>{item.name}</Text>
             <Text style={styles.categoryMeta}>
-              {formatMinorUnits(item.spentMinor, currencyCode)} / {formatMinorUnits(item.limitMinor, currencyCode)}
+              {formatMinorUnits(item.spentMinor, currencyCode)} /{' '}
+              {formatMinorUnits(item.limitMinor, currencyCode)}
             </Text>
           </View>
         </View>
@@ -424,13 +505,6 @@ const styles = StyleSheet.create({
   },
   heroCopy: {
     gap: spacing.sm,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
   },
   title: {
     color: colors.text,

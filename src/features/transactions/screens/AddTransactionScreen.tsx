@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -35,7 +38,6 @@ import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
 import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
-import { formatMinorUnits } from '@/src/shared/utils/money';
 
 const paymentMethodOptions: {
   value: TransactionFormValues['paymentMethod'];
@@ -105,6 +107,20 @@ export function AddTransactionScreen() {
     };
   }, [repositories, status]);
 
+  useEffect(() => {
+    if (!impact) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      setImpact(null);
+    }, 1800);
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, [impact]);
+
   if (!context || !form) {
     return (
       <View style={styles.loadingState}>
@@ -117,8 +133,6 @@ export function AddTransactionScreen() {
 
   const selectedCategories = context.categoriesByType[form.type];
   const recentTemplates = context.recentTemplatesByType[form.type];
-  const selectedCategory =
-    selectedCategories.find((item) => item.id === form.categoryId) ?? null;
   const actionLabel =
     form.type === 'income' ? 'Dodaj przychód' : 'Dodaj wydatek';
   const saveLabel =
@@ -128,6 +142,7 @@ export function AddTransactionScreen() {
         (field) => field.needsAttention,
       )
     : [];
+  const saveFeedback = impact ? 'Dodano' : null;
 
   const handleSave = async () => {
     const validation = validateTransactionForm(form);
@@ -138,6 +153,7 @@ export function AddTransactionScreen() {
       return;
     }
 
+    Keyboard.dismiss();
     setIsSaving(true);
 
     try {
@@ -207,7 +223,6 @@ export function AddTransactionScreen() {
             )
           : current,
       );
-      setShowDetails(false);
     } catch (error: unknown) {
       setSubmitError(
         error instanceof Error
@@ -255,498 +270,436 @@ export function AddTransactionScreen() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
-      <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Update 02.1</Text>
-        <Text style={styles.title}>Dodaj transakcję</Text>
-        <Text style={styles.description}>
-          Najszybsza ścieżka to ręczny wpis. OCR pozostaje obok jako osobny tryb
-          z korektą tylko tam, gdzie dane naprawdę wymagają uwagi.
-        </Text>
-      </View>
-
-      {impact ? (
-        <AppCard>
-          <Text style={styles.sectionTitle}>
-            {impact.transactionType === 'income'
-              ? 'Przychód zapisany'
-              : 'Wydatek zapisany'}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.screen}
+    >
+      <ScrollView
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={styles.content}
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+        style={styles.screen}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.title}>Dodaj transakcję</Text>
+          <Text style={styles.description}>
+            Szybki wpis ręczny jest domyślny. OCR uruchamiasz tylko wtedy, gdy
+            dodajesz z obrazu.
           </Text>
-          <Text style={styles.helperText}>
-            Dodano {formatMinorUnits(impact.amountMinor, context.currencyCode)}{' '}
-            jako {impact.transactionType === 'income' ? 'przychód' : 'wydatek'}{' '}
-            w kategorii {impact.categoryName}.
-          </Text>
-          <View style={styles.badgeRow}>
-            <StatusBadge
-              label={impact.sourceLabel}
-              tone={impact.isOcrSource ? 'positive' : 'muted'}
-            />
-            <StatusBadge
-              label={
-                impact.transactionType === 'income'
-                  ? 'Wpływ na miesiąc zapisany'
-                  : 'Wpływ na budżet zapisany'
-              }
-              tone="muted"
-            />
-          </View>
-          <View style={styles.impactGrid}>
-            <ImpactMetric
-              label="Przychody miesiąca"
-              before={impact.monthIncomeBeforeMinor}
-              after={impact.monthIncomeAfterMinor}
-              currencyCode={context.currencyCode}
-            />
-            <ImpactMetric
-              label="Wydatki miesiąca"
-              before={impact.monthExpenseBeforeMinor}
-              after={impact.monthExpenseAfterMinor}
-              currencyCode={context.currencyCode}
-            />
-            <ImpactMetric
-              label="Bilans miesiąca"
-              before={impact.monthBalanceBeforeMinor}
-              after={impact.monthBalanceAfterMinor}
-              currencyCode={context.currencyCode}
-            />
-            {impact.transactionType === 'expense' ? (
-              <>
-                <ImpactMetric
-                  label="Kategoria"
-                  before={impact.categorySpentBeforeMinor ?? 0}
-                  after={impact.categorySpentAfterMinor ?? 0}
-                  currencyCode={context.currencyCode}
-                />
-                <ImpactRemaining
-                  label="Pozostało w kategorii"
-                  before={impact.categoryRemainingBeforeMinor}
-                  after={impact.categoryRemainingAfterMinor}
-                  currencyCode={context.currencyCode}
-                />
-              </>
-            ) : null}
-          </View>
-        </AppCard>
-      ) : null}
-
-      {submitError ? (
-        <AppCard>
-          <Text style={styles.errorText}>{submitError}</Text>
-        </AppCard>
-      ) : null}
-
-      <AppCard>
-        <Text style={styles.sectionTitle}>Tryb dodawania</Text>
-        <View style={styles.chipGroup}>
-          <Chip
-            active={entryMode === 'manual'}
-            label="Szybki wpis ręczny"
-            onPress={() => setEntryMode('manual')}
-          />
-          <Chip
-            active={entryMode === 'ocr'}
-            label="OCR z obrazu"
-            onPress={() => setEntryMode('ocr')}
-          />
         </View>
-        <Text style={styles.helperText}>
-          {entryMode === 'manual'
-            ? 'Domyślnie pokazujemy najkrótszą ścieżkę do codziennego wpisu. OCR uruchamiaj tylko wtedy, gdy naprawdę dodajesz z obrazu.'
-            : 'Paragon idzie przez aparat albo galerię, a screen płatności przez galerię. Po imporcie przechodzisz od razu do korekty.'}
-        </Text>
-      </AppCard>
 
-      {entryMode === 'ocr' ? (
+        {submitError ? (
+          <AppCard>
+            <Text style={styles.errorText}>{submitError}</Text>
+          </AppCard>
+        ) : null}
+
         <AppCard>
-          <Text style={styles.sectionTitle}>Import z obrazu</Text>
-          <View style={styles.importActions}>
-            <AppButton
-              disabled={isImporting !== null}
-              label={
-                isImporting === 'receipt_photo'
-                  ? 'Otwieram aparat...'
-                  : 'Zrób zdjęcie paragonu'
-              }
-              onPress={() => {
-                void handleImport('receipt_photo');
-              }}
+          <Text style={styles.sectionTitle}>Tryb dodawania</Text>
+          <View style={styles.chipGroup}>
+            <Chip
+              active={entryMode === 'manual'}
+              label="Szybki wpis ręczny"
+              onPress={() => setEntryMode('manual')}
             />
-            <AppButton
-              disabled={isImporting !== null}
-              label={
-                isImporting === 'receipt_gallery'
-                  ? 'Otwieram galerię...'
-                  : 'Wybierz paragon z galerii'
-              }
-              onPress={() => {
-                void handleImport('receipt_gallery');
-              }}
-            />
-            <AppButton
-              disabled={isImporting !== null}
-              label={
-                isImporting === 'payment_screenshot'
-                  ? 'Otwieram galerię...'
-                  : 'Wybierz screen płatności'
-              }
-              onPress={() => {
-                void handleImport('payment_screenshot');
-              }}
+            <Chip
+              active={entryMode === 'ocr'}
+              label="OCR z obrazu"
+              onPress={() => setEntryMode('ocr')}
             />
           </View>
-          <Text style={styles.footnoteText}>
-            OCR on-device wymaga natywnego development builda. Na webie albo bez
-            modułu ML Kit pozostaje fallback ręczny bez utraty załącznika.
+          <Text style={styles.helperText}>
+            {entryMode === 'manual'
+              ? 'Najpierw szybki wpis. OCR jest obok, gdy naprawdę go potrzebujesz.'
+              : 'Po imporcie od razu poprawiasz pola i zapisujesz transakcję.'}
           </Text>
         </AppCard>
-      ) : null}
 
-      {ocrResult && ocrCorrectionDraft ? (
+        {entryMode === 'ocr' ? (
+          <AppCard>
+            <Text style={styles.sectionTitle}>Import z obrazu</Text>
+            <View style={styles.importActions}>
+              <AppButton
+                disabled={isImporting !== null}
+                label={
+                  isImporting === 'receipt_photo'
+                    ? 'Otwieram aparat...'
+                    : 'Zrób zdjęcie paragonu'
+                }
+                onPress={() => {
+                  void handleImport('receipt_photo');
+                }}
+              />
+              <AppButton
+                disabled={isImporting !== null}
+                label={
+                  isImporting === 'receipt_gallery'
+                    ? 'Otwieram galerię...'
+                    : 'Wybierz paragon z galerii'
+                }
+                onPress={() => {
+                  void handleImport('receipt_gallery');
+                }}
+              />
+              <AppButton
+                disabled={isImporting !== null}
+                label={
+                  isImporting === 'payment_screenshot'
+                    ? 'Otwieram galerię...'
+                    : 'Wybierz screen płatności'
+                }
+                onPress={() => {
+                  void handleImport('payment_screenshot');
+                }}
+              />
+            </View>
+            <Text style={styles.footnoteText}>
+              OCR działa w buildzie natywnym. Na webie zostaje ręczne
+              uzupełnienie formularza.
+            </Text>
+          </AppCard>
+        ) : null}
+
+        {ocrResult && ocrCorrectionDraft ? (
+          <AppCard>
+            <Text style={styles.sectionTitle}>Korekta OCR</Text>
+            <Image
+              source={{ uri: ocrResult.attachment.fileUri }}
+              style={styles.previewImage}
+            />
+            <Text style={styles.helperText}>{ocrResult.message}</Text>
+            {ocrAttentionFields.length > 0 ? (
+              <Text style={styles.attentionText}>
+                Sprawdź najpierw {ocrAttentionFields.length}{' '}
+                {ocrAttentionFields.length === 1 ? 'pole' : 'pola'} z
+                oznaczeniem uwagi.
+              </Text>
+            ) : (
+              <Text style={styles.helperText}>
+                Najważniejsze pola wyglądają pewnie. Wystarczy szybki przegląd i
+                zapis.
+              </Text>
+            )}
+            <View style={styles.badgeRow}>
+              <StatusBadge
+                label={
+                  ocrResult.attachment.sourceType === 'receipt_ocr'
+                    ? 'Paragon'
+                    : 'Screen płatności'
+                }
+              />
+              <StatusBadge
+                label={getCorrectionStatusLabel(ocrCorrectionDraft)}
+                tone={ocrCorrectionDraft.requiresReview ? 'muted' : 'positive'}
+              />
+            </View>
+
+            <View style={styles.reviewFieldList}>
+              <ReviewFieldCard
+                field={ocrCorrectionDraft.fields.amountText}
+                keyboardType="decimal-pad"
+                onChangeText={(value) => updateDraftField('amountText', value)}
+              />
+              <ReviewFieldCard
+                field={ocrCorrectionDraft.fields.date}
+                onChangeText={(value) => updateDraftField('date', value)}
+              />
+              <ReviewFieldCard
+                field={ocrCorrectionDraft.fields.merchantName}
+                onChangeText={(value) =>
+                  updateDraftField('merchantName', value)
+                }
+              />
+              <View
+                style={[
+                  styles.reviewFieldCard,
+                  ocrCorrectionDraft.fields.categoryId.needsAttention
+                    ? styles.reviewFieldCardAttention
+                    : null,
+                ]}
+              >
+                <View style={styles.reviewFieldHeader}>
+                  <Text style={styles.reviewFieldLabel}>
+                    {ocrCorrectionDraft.fields.categoryId.label}
+                  </Text>
+                  <StatusBadge
+                    label={getConfidenceLabel(
+                      ocrCorrectionDraft.fields.categoryId.confidence,
+                    )}
+                    tone={
+                      ocrCorrectionDraft.fields.categoryId.needsAttention
+                        ? 'muted'
+                        : 'positive'
+                    }
+                  />
+                </View>
+                <Text style={styles.reviewFieldHelper}>
+                  {ocrCorrectionDraft.fields.categoryId.helperText}
+                </Text>
+                <View style={styles.chipGroup}>
+                  {selectedCategories.map((category) => (
+                    <Chip
+                      key={category.id}
+                      active={form.categoryId === category.id}
+                      label={category.name}
+                      onPress={() =>
+                        updateDraftField('categoryId', category.id)
+                      }
+                    />
+                  ))}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.summaryList}>
+              {ocrResult.parsedSummary.map((item) => (
+                <Text key={item} style={styles.summaryItem}>
+                  {item}
+                </Text>
+              ))}
+            </View>
+
+            {ocrCorrectionDraft.rawText ? (
+              <View style={styles.rawTextSection}>
+                <Pressable
+                  onPress={() => setShowRawOcrText((value) => !value)}
+                  style={styles.detailsToggle}
+                >
+                  <Text style={styles.detailsToggleText}>
+                    {showRawOcrText
+                      ? 'Ukryj surowy tekst OCR'
+                      : 'Pokaż surowy tekst OCR'}
+                  </Text>
+                </Pressable>
+                {showRawOcrText ? (
+                  <View style={styles.rawTextBox}>
+                    <Text style={styles.rawTextTitle}>Surowy tekst OCR</Text>
+                    <Text style={styles.rawTextValue}>
+                      {ocrCorrectionDraft.rawText}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+
+            <View style={styles.inlineActions}>
+              <Pressable
+                onPress={() => {
+                  setOcrResult(null);
+                  setOcrCorrectionDraft(null);
+                  setShowRawOcrText(false);
+                  setEntryMode('manual');
+                }}
+                style={[styles.secondaryButton, styles.secondaryButtonMuted]}
+              >
+                <Text style={styles.secondaryButtonLabelMuted}>
+                  Porzuć korektę OCR
+                </Text>
+              </Pressable>
+            </View>
+          </AppCard>
+        ) : null}
+
         <AppCard>
-          <Text style={styles.sectionTitle}>Ekran korekty OCR</Text>
-          <Image
-            source={{ uri: ocrResult.attachment.fileUri }}
-            style={styles.previewImage}
-          />
-          <Text style={styles.helperText}>{ocrResult.message}</Text>
-          {ocrAttentionFields.length > 0 ? (
-            <Text style={styles.attentionText}>
-              Sprawdź najpierw {ocrAttentionFields.length}{' '}
-              {ocrAttentionFields.length === 1 ? 'pole' : 'pola'} z oznaczeniem
-              uwagi.
+          <Text style={styles.sectionTitle}>{actionLabel}</Text>
+          {ocrCorrectionDraft ? (
+            <Text style={styles.helperText}>
+              Popraw pola i zapisz. Dane trafią do tego samego miejsca co wpis
+              ręczny.
             </Text>
           ) : (
             <Text style={styles.helperText}>
-              Najważniejsze pola wyglądają pewnie. Wystarczy szybki przegląd i
-              zapis.
+              Najczęstszy flow to kwota, kategoria i zapis. Reszta jest schowana
+              w szczegółach.
             </Text>
           )}
-          <View style={styles.badgeRow}>
-            <StatusBadge
-              label={
-                ocrResult.attachment.sourceType === 'receipt_ocr'
-                  ? 'Paragon'
-                  : 'Screen płatności'
-              }
-            />
-            <StatusBadge
-              label={getCorrectionStatusLabel(ocrCorrectionDraft)}
-              tone={ocrCorrectionDraft.requiresReview ? 'muted' : 'positive'}
-            />
-          </View>
 
-          <View style={styles.reviewFieldList}>
-            <ReviewFieldCard
-              field={ocrCorrectionDraft.fields.amountText}
-              keyboardType="decimal-pad"
-              onChangeText={(value) => updateDraftField('amountText', value)}
-            />
-            <ReviewFieldCard
-              field={ocrCorrectionDraft.fields.date}
-              onChangeText={(value) => updateDraftField('date', value)}
-            />
-            <ReviewFieldCard
-              field={ocrCorrectionDraft.fields.merchantName}
-              onChangeText={(value) => updateDraftField('merchantName', value)}
-            />
-            <View
-              style={[
-                styles.reviewFieldCard,
-                ocrCorrectionDraft.fields.categoryId.needsAttention
-                  ? styles.reviewFieldCardAttention
-                  : null,
-              ]}
-            >
-              <View style={styles.reviewFieldHeader}>
-                <Text style={styles.reviewFieldLabel}>
-                  {ocrCorrectionDraft.fields.categoryId.label}
-                </Text>
-                <StatusBadge
-                  label={getConfidenceLabel(
-                    ocrCorrectionDraft.fields.categoryId.confidence,
-                  )}
-                  tone={
-                    ocrCorrectionDraft.fields.categoryId.needsAttention
-                      ? 'muted'
-                      : 'positive'
-                  }
-                />
-              </View>
-              <Text style={styles.reviewFieldHelper}>
-                {ocrCorrectionDraft.fields.categoryId.helperText}
+          {!ocrCorrectionDraft && recentTemplates.length > 0 ? (
+            <View style={styles.quickRepeatSection}>
+              <FieldLabel label="Szybkie powtórki" />
+              <Text style={styles.helperText}>
+                Jednym tapnięciem podstawisz ostatni podobny wpis.
               </Text>
               <View style={styles.chipGroup}>
-                {selectedCategories.map((category) => (
+                {recentTemplates.map((template) => (
                   <Chip
-                    key={category.id}
-                    active={form.categoryId === category.id}
-                    label={category.name}
-                    onPress={() => updateDraftField('categoryId', category.id)}
+                    key={template.transactionId}
+                    active={
+                      form.categoryId === template.categoryId &&
+                      form.amountText === template.amountText &&
+                      form.paymentMethod === template.paymentMethod &&
+                      form.description === template.description
+                    }
+                    label={`${template.label} • ${template.amountText}`}
+                    onPress={() => applyRecentTemplate(template)}
                   />
                 ))}
               </View>
             </View>
-          </View>
+          ) : null}
 
-          <View style={styles.summaryList}>
-            {ocrResult.parsedSummary.map((item) => (
-              <Text key={item} style={styles.summaryItem}>
-                {item}
-              </Text>
+          <FieldLabel label="Typ transakcji" required />
+          <View style={styles.chipGroup}>
+            {transactionTypeOptions.map((option) => (
+              <Chip
+                key={option.value}
+                active={form.type === option.value}
+                label={option.label}
+                onPress={() =>
+                  setForm((current) =>
+                    current && context
+                      ? createFormValuesForType(current, option.value, context)
+                      : current,
+                  )
+                }
+              />
             ))}
           </View>
 
-          {ocrCorrectionDraft.rawText ? (
-            <View style={styles.rawTextSection}>
-              <Pressable
-                onPress={() => setShowRawOcrText((value) => !value)}
-                style={styles.detailsToggle}
-              >
-                <Text style={styles.detailsToggleText}>
-                  {showRawOcrText
-                    ? 'Ukryj surowy tekst OCR'
-                    : 'Pokaż surowy tekst OCR'}
-                </Text>
-              </Pressable>
-              {showRawOcrText ? (
-                <View style={styles.rawTextBox}>
-                  <Text style={styles.rawTextTitle}>Surowy tekst OCR</Text>
-                  <Text style={styles.rawTextValue}>
-                    {ocrCorrectionDraft.rawText}
-                  </Text>
-                </View>
+          <FieldLabel label="Kwota" required />
+          <AppInput
+            keyboardType="decimal-pad"
+            onChangeText={(value) => {
+              setForm((current) =>
+                current ? { ...current, amountText: value } : current,
+              );
+              if (ocrCorrectionDraft) {
+                updateDraftField('amountText', value);
+              }
+            }}
+            placeholder="Np. 34,90"
+            value={form.amountText}
+          />
+          {errors.amountText ? (
+            <Text style={styles.errorText}>{errors.amountText}</Text>
+          ) : null}
+
+          <FieldLabel label="Kategoria" required />
+          <View style={styles.chipGroup}>
+            {selectedCategories.map((category) => (
+              <Chip
+                key={category.id}
+                active={form.categoryId === category.id}
+                label={category.name}
+                onPress={() => {
+                  setForm((current) =>
+                    current ? { ...current, categoryId: category.id } : current,
+                  );
+                  if (ocrCorrectionDraft) {
+                    updateDraftField('categoryId', category.id);
+                  }
+                }}
+              />
+            ))}
+          </View>
+          {errors.categoryId ? (
+            <Text style={styles.errorText}>{errors.categoryId}</Text>
+          ) : null}
+
+          <View style={styles.summaryRow}>
+            <Text style={styles.summaryText}>Data: {form.date}</Text>
+            <Text style={styles.summaryText}>
+              Typ: {form.type === 'income' ? 'Przychód' : 'Wydatek'}
+            </Text>
+            <Text style={styles.summaryText}>
+              Metoda:{' '}
+              {
+                paymentMethodOptions.find(
+                  (item) => item.value === form.paymentMethod,
+                )?.label
+              }
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={() => setShowDetails((value) => !value)}
+            style={styles.detailsToggle}
+          >
+            <Text style={styles.detailsToggleText}>
+              {showDetails ? 'Ukryj szczegóły' : 'Pokaż szczegóły'}
+            </Text>
+          </Pressable>
+
+          {showDetails ? (
+            <View style={styles.detailsSection}>
+              <FieldLabel label="Data" required />
+              <AppInput
+                onChangeText={(value) => {
+                  setForm((current) =>
+                    current ? { ...current, date: value } : current,
+                  );
+                  if (ocrCorrectionDraft) {
+                    updateDraftField('date', value);
+                  }
+                }}
+                placeholder="RRRR-MM-DD"
+                value={form.date}
+              />
+              {errors.date ? (
+                <Text style={styles.errorText}>{errors.date}</Text>
               ) : null}
+
+              <FieldLabel label="Metoda płatności" />
+              <View style={styles.chipGroup}>
+                {paymentMethodOptions.map((option) => (
+                  <Chip
+                    key={option.value}
+                    active={form.paymentMethod === option.value}
+                    label={option.label}
+                    onPress={() =>
+                      setForm((current) =>
+                        current
+                          ? { ...current, paymentMethod: option.value }
+                          : current,
+                      )
+                    }
+                  />
+                ))}
+              </View>
+
+              <FieldLabel label="Sklep / opis" />
+              <AppInput
+                multiline
+                onChangeText={(value) => {
+                  setForm((current) =>
+                    current ? { ...current, description: value } : current,
+                  );
+                  if (ocrCorrectionDraft) {
+                    updateDraftField('merchantName', value);
+                  }
+                }}
+                placeholder="Np. Lidl albo kawa po spotkaniu"
+                value={form.description}
+              />
             </View>
           ) : null}
 
-          <View style={styles.inlineActions}>
-            <Pressable
-              onPress={() => {
-                setOcrResult(null);
-                setOcrCorrectionDraft(null);
-                setShowRawOcrText(false);
-                setEntryMode('manual');
-              }}
-              style={[styles.secondaryButton, styles.secondaryButtonMuted]}
-            >
-              <Text style={styles.secondaryButtonLabelMuted}>
-                Porzuć korektę OCR
-              </Text>
-            </Pressable>
-          </View>
-        </AppCard>
-      ) : null}
-
-      <AppCard>
-        <Text style={styles.sectionTitle}>{actionLabel}</Text>
-        {ocrCorrectionDraft ? (
-          <Text style={styles.helperText}>
-            Formularz poniżej jest zasilany przez etap korekty OCR. Nadal
-            zapisuje do tej samej warstwy danych co wpis ręczny, bez
-            równoległego modelu.
-          </Text>
-        ) : (
-          <Text style={styles.helperText}>
-            Najczęstszy flow to kwota, kategoria i zapis. Reszta pól jest
-            schowana w szczegółach, żeby nie spowalniać codziennego dodawania.
-          </Text>
-        )}
-
-        {!ocrCorrectionDraft && recentTemplates.length > 0 ? (
-          <View style={styles.quickRepeatSection}>
-            <FieldLabel label="Szybkie powtórki" />
-            <Text style={styles.helperText}>
-              Jednym tapnięciem podstawisz ostatni podobny wpis razem z
-              kategorią, kwotą i metodą płatności.
+          <AppButton
+            disabled={isSaving || isImporting !== null}
+            label={isSaving ? 'Zapisywanie...' : saveLabel}
+            onPress={handleSave}
+          />
+          {saveFeedback ? (
+            <Text style={styles.successText}>{saveFeedback}</Text>
+          ) : null}
+          {ocrResult ? (
+            <Text style={styles.footnoteText}>
+              Po zapisie zachowasz też załącznik i wynik OCR.
             </Text>
-            <View style={styles.chipGroup}>
-              {recentTemplates.map((template) => (
-                <Chip
-                  key={template.transactionId}
-                  active={
-                    form.categoryId === template.categoryId &&
-                    form.amountText === template.amountText &&
-                    form.paymentMethod === template.paymentMethod &&
-                    form.description === template.description
-                  }
-                  label={`${template.label} • ${template.amountText}`}
-                  onPress={() => applyRecentTemplate(template)}
-                />
-              ))}
-            </View>
+          ) : null}
+        </AppCard>
+
+        {isImporting ? (
+          <View style={styles.importOverlay}>
+            <ActivityIndicator color={colors.primary} size="small" />
+            <Text style={styles.helperText}>
+              Przetwarzam obraz i przygotowuję dane do korekty...
+            </Text>
           </View>
         ) : null}
-
-        <FieldLabel label="Typ transakcji" required />
-        <View style={styles.chipGroup}>
-          {transactionTypeOptions.map((option) => (
-            <Chip
-              key={option.value}
-              active={form.type === option.value}
-              label={option.label}
-              onPress={() =>
-                setForm((current) =>
-                  current && context
-                    ? createFormValuesForType(current, option.value, context)
-                    : current,
-                )
-              }
-            />
-          ))}
-        </View>
-
-        <FieldLabel label="Kwota" required />
-        <AppInput
-          autoFocus={!ocrResult}
-          keyboardType="decimal-pad"
-          onChangeText={(value) => {
-            setForm((current) =>
-              current ? { ...current, amountText: value } : current,
-            );
-            if (ocrCorrectionDraft) {
-              updateDraftField('amountText', value);
-            }
-          }}
-          placeholder="Np. 34,90"
-          value={form.amountText}
-        />
-        {errors.amountText ? (
-          <Text style={styles.errorText}>{errors.amountText}</Text>
-        ) : null}
-
-        <FieldLabel label="Kategoria" required />
-        <View style={styles.chipGroup}>
-          {selectedCategories.map((category) => (
-            <Chip
-              key={category.id}
-              active={form.categoryId === category.id}
-              label={category.name}
-              onPress={() => {
-                setForm((current) =>
-                  current ? { ...current, categoryId: category.id } : current,
-                );
-                if (ocrCorrectionDraft) {
-                  updateDraftField('categoryId', category.id);
-                }
-              }}
-            />
-          ))}
-        </View>
-        {errors.categoryId ? (
-          <Text style={styles.errorText}>{errors.categoryId}</Text>
-        ) : null}
-
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>Data: {form.date}</Text>
-          <Text style={styles.summaryText}>
-            Typ: {form.type === 'income' ? 'Przychód' : 'Wydatek'}
-          </Text>
-          <Text style={styles.summaryText}>
-            Metoda:{' '}
-            {
-              paymentMethodOptions.find(
-                (item) => item.value === form.paymentMethod,
-              )?.label
-            }
-          </Text>
-        </View>
-
-        <Pressable
-          onPress={() => setShowDetails((value) => !value)}
-          style={styles.detailsToggle}
-        >
-          <Text style={styles.detailsToggleText}>
-            {showDetails ? 'Ukryj szczegóły' : 'Pokaż szczegóły'}
-          </Text>
-        </Pressable>
-
-        {showDetails ? (
-          <View style={styles.detailsSection}>
-            <FieldLabel label="Data" required />
-            <AppInput
-              onChangeText={(value) => {
-                setForm((current) =>
-                  current ? { ...current, date: value } : current,
-                );
-                if (ocrCorrectionDraft) {
-                  updateDraftField('date', value);
-                }
-              }}
-              placeholder="RRRR-MM-DD"
-              value={form.date}
-            />
-            {errors.date ? (
-              <Text style={styles.errorText}>{errors.date}</Text>
-            ) : null}
-
-            <FieldLabel label="Metoda płatności" />
-            <View style={styles.chipGroup}>
-              {paymentMethodOptions.map((option) => (
-                <Chip
-                  key={option.value}
-                  active={form.paymentMethod === option.value}
-                  label={option.label}
-                  onPress={() =>
-                    setForm((current) =>
-                      current
-                        ? { ...current, paymentMethod: option.value }
-                        : current,
-                    )
-                  }
-                />
-              ))}
-            </View>
-
-            <FieldLabel label="Sklep / opis" />
-            <AppInput
-              multiline
-              onChangeText={(value) => {
-                setForm((current) =>
-                  current ? { ...current, description: value } : current,
-                );
-                if (ocrCorrectionDraft) {
-                  updateDraftField('merchantName', value);
-                }
-              }}
-              placeholder="Np. Lidl albo kawa po spotkaniu"
-              value={form.description}
-            />
-          </View>
-        ) : null}
-
-        <AppButton
-          disabled={isSaving || isImporting !== null}
-          label={isSaving ? 'Zapisywanie...' : saveLabel}
-          onPress={handleSave}
-        />
-      </AppCard>
-
-      <AppCard>
-        <Text style={styles.sectionTitle}>Podgląd zapisu</Text>
-        <Text style={styles.helperText}>
-          Zapis utworzy transakcję typu `{form.type}` z kategorią{' '}
-          {selectedCategory?.name ?? 'nieustawioną'}. Bilans miesiąca dla{' '}
-          {form.date.slice(0, 7)} przelicza się wspólnie dla przychodów i
-          wydatków, a budżet kategorii jest aktualizowany tylko dla wydatków.
-        </Text>
-        {ocrResult ? (
-          <Text style={styles.helperText}>
-            Ponieważ wpis przeszedł przez korektę OCR, transakcja zapisze się ze
-            statusem `reviewed` i zachowa surowy tekst oraz powiązany załącznik.
-          </Text>
-        ) : null}
-      </AppCard>
-
-      {isImporting ? (
-        <View style={styles.importOverlay}>
-          <ActivityIndicator color={colors.primary} size="small" />
-          <Text style={styles.helperText}>
-            Przetwarzam obraz i przygotowuję dane do korekty...
-          </Text>
-        </View>
-      ) : null}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -872,53 +825,6 @@ function StatusBadge({
   );
 }
 
-function ImpactMetric({
-  label,
-  before,
-  after,
-  currencyCode,
-}: {
-  label: string;
-  before: number;
-  after: number;
-  currencyCode: string;
-}) {
-  return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>
-        {formatMinorUnits(before, currencyCode)} →{' '}
-        {formatMinorUnits(after, currencyCode)}
-      </Text>
-    </View>
-  );
-}
-
-function ImpactRemaining({
-  label,
-  before,
-  after,
-  currencyCode,
-}: {
-  label: string;
-  before: number | null;
-  after: number | null;
-  currencyCode: string;
-}) {
-  return (
-    <View style={styles.metricCard}>
-      <Text style={styles.metricLabel}>{label}</Text>
-      <Text style={styles.metricValue}>
-        {before === null
-          ? 'bez limitu'
-          : formatMinorUnits(before, currencyCode)}{' '}
-        →{' '}
-        {after === null ? 'bez limitu' : formatMinorUnits(after, currencyCode)}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
@@ -982,12 +888,6 @@ const styles = StyleSheet.create({
   errorText: {
     color: colors.danger,
   },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
   fieldLabel: {
     color: colors.text,
     fontSize: typography.caption,
@@ -1004,9 +904,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   hero: {
-    gap: spacing.sm,
-  },
-  impactGrid: {
     gap: spacing.sm,
   },
   importActions: {
@@ -1032,24 +929,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: colors.textMuted,
     textAlign: 'center',
-  },
-  metricCard: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  metricLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
   },
   previewImage: {
     borderRadius: radius.md,
@@ -1153,6 +1032,12 @@ const styles = StyleSheet.create({
   },
   statusBadgePositive: {
     backgroundColor: colors.primarySoft,
+  },
+  successText: {
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '700',
+    marginTop: spacing.sm,
   },
   summaryItem: {
     color: colors.text,

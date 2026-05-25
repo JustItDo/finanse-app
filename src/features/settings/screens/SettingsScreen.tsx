@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import {
+  normalizePin,
+  SECURITY_SESSION_GRACE_PERIOD_MINUTES,
+} from '@/src/features/security/data/security';
 import { useSecurity } from '@/src/features/security/providers/SecurityProvider';
-import { normalizePin } from '@/src/features/security/data/security';
 import { colors, spacing, typography } from '@/src/shared/theme';
 import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
 
@@ -65,7 +68,7 @@ export function SettingsScreen() {
       await enablePin(newPin, wantsBiometrics);
       setNewPin('');
       setConfirmPin('');
-      setFeedback('Blokada aplikacji została włączona.');
+      setFeedback('Blokada włączona.');
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -92,7 +95,7 @@ export function SettingsScreen() {
       setCurrentPin('');
       setNextPin('');
       setConfirmNextPin('');
-      setFeedback('PIN został zmieniony.');
+      setFeedback('PIN zmieniony.');
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error ? error.message : 'Nie udało się zmienić PIN-u.',
@@ -109,7 +112,7 @@ export function SettingsScreen() {
     try {
       await disableSecurity(disablePin);
       setDisablePin('');
-      setFeedback('Blokada aplikacji została wyłączona.');
+      setFeedback('Blokada wyłączona.');
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -129,8 +132,8 @@ export function SettingsScreen() {
       await setBiometricEnabled(!settings.biometricEnabled);
       setFeedback(
         settings.biometricEnabled
-          ? 'Biometria została wyłączona.'
-          : 'Biometria została włączona.',
+          ? 'Biometria wyłączona.'
+          : 'Biometria włączona.',
       );
     } catch (error: unknown) {
       setErrorMessage(
@@ -146,12 +149,9 @@ export function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>Update 04.0</Text>
         <Text style={styles.title}>Bezpieczeństwo</Text>
         <Text style={styles.description}>
-          Ten etap dodaje lekką blokadę dostępu do aplikacji, ponowne wymaganie
-          odblokowania po wznowieniu i przechowywanie sekretu wejścia poza
-          zwykłą bazą danych.
+          PIN i biometria chronią wejście do aplikacji po dłuższej przerwie.
         </Text>
       </View>
 
@@ -179,8 +179,14 @@ export function SettingsScreen() {
           />
           <SecurityRow
             label="Ochrona danych lokalnych"
-            value="Sekret blokady jest poza SQLite; sama baza i pliki nie są jeszcze szyfrowane."
+            value="PIN jest poza SQLite. Baza i pliki nie są jeszcze szyfrowane."
           />
+          {settings.hasPin ? (
+            <SecurityRow
+              label="Aktywna sesja"
+              value={`Do ${SECURITY_SESSION_GRACE_PERIOD_MINUTES} min po odblokowaniu`}
+            />
+          ) : null}
         </View>
       </AppCard>
 
@@ -200,8 +206,7 @@ export function SettingsScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Włącz blokadę aplikacji</Text>
           <Text style={styles.helperText}>
-            Podaj 4-cyfrowy PIN. Jeśli urządzenie wspiera biometrię, możesz od
-            razu włączyć szybsze odblokowanie.
+            Ustaw 4 cyfry. Biometrię możesz dodać od razu.
           </Text>
 
           <View style={styles.formBlock}>
@@ -233,12 +238,9 @@ export function SettingsScreen() {
           {capabilities.biometricAvailable ? (
             <AppButton
               disabled={isSaving}
-              label={
-                wantsBiometrics
-                  ? `Biometria po włączeniu: tak (${capabilities.biometricLabel})`
-                  : `Biometria po włączeniu: nie (${capabilities.biometricLabel})`
-              }
+              label={wantsBiometrics ? 'Biometria: tak' : 'Biometria: nie'}
               onPress={() => setWantsBiometrics((current) => !current)}
+              variant="secondary"
             />
           ) : null}
 
@@ -310,8 +312,7 @@ export function SettingsScreen() {
             <AppCard>
               <Text style={styles.sectionTitle}>Biometria</Text>
               <Text style={styles.helperText}>
-                Biometria przyspiesza odblokowanie po wznowieniu, ale PIN
-                pozostaje awaryjną ścieżką dostępu.
+                Przyspiesza wejście. PIN zostaje awaryjnie.
               </Text>
               <AppButton
                 disabled={isSaving}
@@ -328,9 +329,8 @@ export function SettingsScreen() {
           <AppCard>
             <Text style={styles.sectionTitle}>Wyłączenie blokady</Text>
             <Text style={styles.helperText}>
-              Wyłączenie blokady usuwa lokalny sekret wejścia. Dane aplikacji
-              pozostają w istniejącej bazie i załącznikach bez dodatkowego
-              szyfrowania tego etapu.
+              Usuwa lokalny sekret wejścia. Dane w bazie i załącznikach
+              pozostają bez dodatkowego szyfrowania tego etapu.
             </Text>
 
             <View style={styles.formBlock}>
@@ -379,12 +379,6 @@ const styles = StyleSheet.create({
   },
   hero: {
     gap: spacing.sm,
-  },
-  eyebrow: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
   },
   title: {
     color: colors.text,

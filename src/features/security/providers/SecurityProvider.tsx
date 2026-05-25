@@ -21,6 +21,7 @@ import * as LocalAuthentication from 'expo-local-authentication';
 
 import {
   createDefaultSecuritySettings,
+  SECURITY_SESSION_GRACE_PERIOD_MINUTES,
   validatePin,
   type SecurityCapabilities,
   type SecuritySettings,
@@ -53,6 +54,8 @@ const defaultCapabilities: SecurityCapabilities = {
   biometricAvailable: false,
   biometricLabel: 'biometrii',
 };
+
+const APP_LOCK_GRACE_PERIOD_MS = SECURITY_SESSION_GRACE_PERIOD_MINUTES * 60_000;
 
 const SecurityContext = createContext<SecurityContextValue | null>(null);
 
@@ -109,6 +112,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
   const [isUnlocking, setIsUnlocking] = useState(false);
   const biometricAttemptedRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const backgroundedAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,8 +159,21 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       appStateRef.current = nextAppState;
 
       if (previousAppState === 'active' && nextAppState !== 'active') {
-        biometricAttemptedRef.current = false;
-        setIsLocked(true);
+        backgroundedAtRef.current = Date.now();
+        return;
+      }
+
+      if (previousAppState !== 'active' && nextAppState === 'active') {
+        const backgroundedAt = backgroundedAtRef.current;
+        backgroundedAtRef.current = null;
+
+        if (
+          backgroundedAt !== null &&
+          Date.now() - backgroundedAt >= APP_LOCK_GRACE_PERIOD_MS
+        ) {
+          biometricAttemptedRef.current = false;
+          setIsLocked(true);
+        }
       }
     });
 
@@ -164,6 +181,12 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       subscription.remove();
     };
   }, [settings.autoLockOnResume, settings.hasPin]);
+
+  useEffect(() => {
+    if (!settings.hasPin) {
+      backgroundedAtRef.current = null;
+    }
+  }, [settings.hasPin]);
 
   const persistSettings = async (nextSettings: SecuritySettings) => {
     await saveSecuritySettings({
@@ -185,6 +208,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       return false;
     }
 
+    backgroundedAtRef.current = null;
     biometricAttemptedRef.current = true;
     setIsLocked(false);
     return true;
@@ -208,10 +232,10 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       });
 
       if (!result.success) {
-        biometricAttemptedRef.current = true;
         return false;
       }
 
+      backgroundedAtRef.current = null;
       biometricAttemptedRef.current = true;
       setIsLocked(false);
       return true;
@@ -264,6 +288,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       };
 
       await persistSettings(nextSettings);
+      backgroundedAtRef.current = null;
       biometricAttemptedRef.current = false;
       setIsLocked(false);
     },
@@ -292,6 +317,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     }
 
     await clearSecurity();
+    backgroundedAtRef.current = null;
     biometricAttemptedRef.current = false;
     setSettings(createDefaultSecuritySettings());
     setIsLocked(false);

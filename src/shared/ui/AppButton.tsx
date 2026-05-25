@@ -6,12 +6,36 @@ type AppButtonProps = {
   label: string;
   onPress?: () => void;
   disabled?: boolean;
+  variant?: 'primary' | 'secondary';
 };
 
-export function AppButton({ label, onPress, disabled = false }: AppButtonProps) {
+export function AppButton({
+  label,
+  onPress,
+  disabled = false,
+  variant = 'primary',
+}: AppButtonProps) {
+  const isSecondary = variant === 'secondary';
+
   return (
-    <Pressable disabled={disabled} onPress={onPress} style={[styles.button, disabled ? styles.buttonDisabled : null]}>
-      <Text style={[styles.label, disabled ? styles.labelDisabled : null]}>{label}</Text>
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={[
+        styles.button,
+        isSecondary ? styles.buttonSecondary : styles.buttonPrimary,
+        disabled ? styles.buttonDisabled : null,
+      ]}
+    >
+      <Text
+        style={[
+          styles.label,
+          isSecondary ? styles.labelSecondary : styles.labelPrimary,
+          disabled ? styles.labelDisabled : null,
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -19,18 +43,30 @@ export function AppButton({ label, onPress, disabled = false }: AppButtonProps) 
 const styles = StyleSheet.create({
   button: {
     alignItems: 'center',
-    backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
-  buttonDisabled: {
+  buttonPrimary: {
+    backgroundColor: colors.primary,
+  },
+  buttonSecondary: {
     backgroundColor: colors.surfaceMuted,
+    borderColor: colors.border,
+    borderWidth: 1,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   label: {
-    color: colors.surface,
     fontSize: 16,
     fontWeight: '700',
+  },
+  labelPrimary: {
+    color: colors.surface,
+  },
+  labelSecondary: {
+    color: colors.text,
   },
   labelDisabled: {
     color: colors.textMuted,
