@@ -23,4 +23,8 @@ Additional app context:
 - Make code changes in the app repository unless the task explicitly asks to update the wiki."
 
 cd "${APP_ROOT}"
-exec codex --add-dir "${WIKI_ROOT}" "${PROMPT}"
+exec codex \
+  --model gpt-5.4 \
+  -c model_reasoning_effort="medium" \
+  --add-dir "${WIKI_ROOT}" \
+  "${PROMPT}"
