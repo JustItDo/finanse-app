@@ -1,19 +1,23 @@
+import { forwardRef } from 'react';
 import type { TextInputProps } from 'react-native';
 import { StyleSheet, TextInput } from 'react-native';
 
 import { colors, radius, spacing } from '@/src/shared/theme';
 
-export function AppInput(props: TextInputProps) {
-  const { style, ...rest } = props;
+export const AppInput = forwardRef<TextInput, TextInputProps>(
+  function AppInput(props, ref) {
+    const { style, ...rest } = props;
 
-  return (
-    <TextInput
-      placeholderTextColor={colors.textMuted}
-      style={[styles.input, style]}
-      {...rest}
-    />
-  );
-}
+    return (
+      <TextInput
+        ref={ref}
+        placeholderTextColor={colors.textMuted}
+        style={[styles.input, style]}
+        {...rest}
+      />
+    );
+  },
+);
 
 const styles = StyleSheet.create({
   input: {

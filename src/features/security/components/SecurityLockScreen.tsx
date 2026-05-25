@@ -1,12 +1,16 @@
-import { useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
-
+import { useEffect, useRef, useState } from 'react';
 import {
-  normalizePin,
-  SECURITY_SESSION_GRACE_PERIOD_MINUTES,
-} from '@/src/features/security/data/security';
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+
+import { normalizePin } from '@/src/features/security/data/security';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
+import { AppButton, AppCard } from '@/src/shared/ui';
 
 type SecurityLockScreenProps = {
   biometricAvailable: boolean;
@@ -27,7 +31,26 @@ export function SecurityLockScreen({
 }: SecurityLockScreenProps) {
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const inputRef = useRef<TextInput | null>(null);
   const showBiometricAction = biometricEnabled && biometricAvailable;
+  const description = showBiometricAction
+    ? 'Po przerwie wrócisz tu PIN-em lub biometrią.'
+    : 'Po przerwie wrócisz tu PIN-em.';
+  const focusPinInput = () => {
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 50);
+  };
+
+  useEffect(() => {
+    focusPinInput();
+  }, []);
+
+  useEffect(() => {
+    if (!isUnlocking) {
+      focusPinInput();
+    }
+  }, [isUnlocking]);
 
   const submitPin = async () => {
     setErrorMessage(null);
@@ -36,6 +59,7 @@ export function SecurityLockScreen({
     if (!unlocked) {
       setErrorMessage('PIN jest nieprawidłowy.');
       setPin('');
+      focusPinInput();
     }
   };
 
@@ -47,30 +71,21 @@ export function SecurityLockScreen({
       setErrorMessage(
         `Nie udało się potwierdzić ${biometricLabel.toLowerCase()}.`,
       );
+      focusPinInput();
     }
   };
 
   return (
     <View style={styles.overlay}>
       <AppCard>
-        <View style={styles.pillRow}>
-          <StatusPill
-            label={`Sesja ${SECURITY_SESSION_GRACE_PERIOD_MINUTES} min`}
-          />
-          {showBiometricAction ? (
-            <StatusPill label={biometricLabel} tone="positive" />
-          ) : null}
-        </View>
         <Text style={styles.title}>Odblokuj aplikację</Text>
-        <Text style={styles.description}>
-          Po przerwie wrócisz tu PIN-em albo biometrią.
-        </Text>
+        <Text style={styles.description}>{description}</Text>
 
         {showBiometricAction ? (
           <View style={styles.biometricSection}>
             <AppButton
               disabled={isUnlocking}
-              label={`Użyj ${biometricLabel}`}
+              label="Użyj biometrii"
               onPress={submitBiometrics}
             />
             <Text style={styles.dividerText}>albo PIN</Text>
@@ -78,28 +93,42 @@ export function SecurityLockScreen({
         ) : null}
 
         <View style={styles.form}>
-          <Text style={styles.label}>
-            {showBiometricAction ? 'PIN zapasowy' : 'PIN'}
-          </Text>
-          <AppInput
-            autoCapitalize="none"
-            autoCorrect={false}
-            editable={!isUnlocking}
-            inputMode="numeric"
-            keyboardType="number-pad"
-            maxLength={4}
-            onChangeText={(value) => setPin(normalizePin(value))}
-            onSubmitEditing={submitPin}
-            placeholder="Wpisz 4-cyfrowy PIN"
-            secureTextEntry
-            style={styles.pinInput}
-            value={pin}
-          />
-          {showBiometricAction ? (
-            <Text style={styles.pinHint}>
-              Użyj go tylko, gdy biometria nie zadziała.
-            </Text>
-          ) : null}
+          <Text style={styles.label}>PIN</Text>
+          <Pressable onPress={focusPinInput} style={styles.pinFieldPressable}>
+            <View style={styles.pinSlots}>
+              {Array.from({ length: 4 }, (_, index) => {
+                const filled = index < pin.length;
+
+                return (
+                  <View key={index} style={styles.pinSlot}>
+                    <View
+                      style={[
+                        styles.pinSlotLine,
+                        filled ? styles.pinSlotLineFilled : null,
+                      ]}
+                    />
+                    {filled ? <View style={styles.pinDot} /> : null}
+                  </View>
+                );
+              })}
+            </View>
+            <TextInput
+              ref={inputRef}
+              autoCapitalize="none"
+              autoCorrect={false}
+              caretHidden
+              contextMenuHidden
+              editable={!isUnlocking}
+              inputMode="numeric"
+              keyboardType="number-pad"
+              maxLength={4}
+              onChangeText={(value) => setPin(normalizePin(value))}
+              onSubmitEditing={submitPin}
+              secureTextEntry
+              style={styles.hiddenInput}
+              value={pin}
+            />
+          </Pressable>
         </View>
 
         {errorMessage ? (
@@ -126,29 +155,6 @@ export function SecurityLockScreen({
   );
 }
 
-function StatusPill({
-  label,
-  tone = 'default',
-}: {
-  label: string;
-  tone?: 'default' | 'positive';
-}) {
-  return (
-    <View
-      style={[styles.pill, tone === 'positive' ? styles.pillPositive : null]}
-    >
-      <Text
-        style={[
-          styles.pillLabel,
-          tone === 'positive' ? styles.pillLabelPositive : null,
-        ]}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   overlay: {
     alignItems: 'center',
@@ -161,28 +167,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.title,
     fontWeight: '700',
-  },
-  pillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  pill: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  pillPositive: {
-    backgroundColor: colors.primarySoft,
-  },
-  pillLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  pillLabelPositive: {
-    color: colors.primary,
   },
   description: {
     color: colors.textMuted,
@@ -200,6 +184,48 @@ const styles = StyleSheet.create({
   form: {
     gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  pinFieldPressable: {
+    alignSelf: 'stretch',
+  },
+  pinSlots: {
+    flexDirection: 'row',
+    gap: spacing.md,
+    justifyContent: 'space-between',
+  },
+  pinSlot: {
+    alignItems: 'center',
+    backgroundColor: colors.background,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flex: 1,
+    height: 68,
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  pinSlotLine: {
+    backgroundColor: colors.textMuted,
+    borderRadius: radius.pill,
+    height: 3,
+    width: 18,
+  },
+  pinSlotLineFilled: {
+    backgroundColor: colors.primary,
+    opacity: 0,
+  },
+  pinDot: {
+    backgroundColor: colors.text,
+    borderRadius: radius.pill,
+    height: 12,
+    position: 'absolute',
+    width: 12,
+  },
+  hiddenInput: {
+    ...StyleSheet.absoluteFill,
+    color: 'transparent',
+    opacity: 0.02,
+    position: 'absolute',
   },
   label: {
     color: colors.text,
@@ -221,16 +247,5 @@ const styles = StyleSheet.create({
   actions: {
     gap: spacing.md,
     marginTop: spacing.sm,
-  },
-  pinInput: {
-    fontSize: 24,
-    fontWeight: '700',
-    letterSpacing: 10,
-    paddingHorizontal: spacing.md,
-    textAlign: 'center',
-  },
-  pinHint: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
   },
 });

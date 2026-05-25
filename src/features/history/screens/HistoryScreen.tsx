@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  type LayoutChangeEvent,
+} from 'react-native';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
@@ -21,7 +30,13 @@ import {
 import type { RootTabParamList } from '@/src/navigation/AppNavigator';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  useFocusedFieldScroll,
+  useScreenContentInsets,
+} from '@/src/shared/ui';
 import { formatMonthKeyLabel } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
@@ -50,10 +65,51 @@ const paymentMethodOptions: {
   { value: 'other', label: 'Inne' },
 ];
 
+function formatHistoryMonthSummary(monthKey: string) {
+  if (!monthKey) {
+    return 'Wszystkie miesiące';
+  }
+
+  return formatMonthKeyLabel(monthKey);
+}
+
 export function HistoryScreen() {
   const { repositories, status, error } = useAppServices();
+  const { contentBottomPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
+  const listRef = useRef<FlatList<HistoryTransactionItem> | null>(null);
+  const detailCardOffsetYRef = useRef(0);
+  const scrollToKeyboardTarget = (target: number, topOffset: number) => {
+    const scrollResponder = listRef.current?.getScrollResponder() as
+      | {
+          scrollResponderScrollNativeHandleToKeyboard?: (
+            nodeHandle: number,
+            additionalOffset?: number,
+            preventNegativeScrollOffset?: boolean,
+          ) => void;
+        }
+      | undefined;
+
+    scrollResponder?.scrollResponderScrollNativeHandleToKeyboard?.(
+      target,
+      topOffset,
+      true,
+    );
+  };
+  const { createFocusHandler, registerInputRef, setFieldOffset } =
+    useFocusedFieldScroll(
+      (y) => {
+        listRef.current?.scrollToOffset({ animated: true, offset: y });
+      },
+      { scrollToTarget: scrollToKeyboardTarget },
+    );
+  const registerDetailField = (fieldId: string) => (event: LayoutChangeEvent) => {
+    setFieldOffset(
+      fieldId,
+      detailCardOffsetYRef.current + event.nativeEvent.layout.y,
+    );
+  };
 
   const [historyState, setHistoryState] = useState<HistoryScreenState | null>(
     null,
@@ -411,7 +467,7 @@ export function HistoryScreen() {
 
         <Text style={styles.helperText}>
           Wyniki: {historyState.totalCount} dla{' '}
-          {formatMonthKeyLabel(historyState.filters.monthKey)}.
+          {formatHistoryMonthSummary(historyState.filters.monthKey)}.
         </Text>
       </AppCard>
 
@@ -440,8 +496,16 @@ export function HistoryScreen() {
 
   return (
     <FlatList
-      contentContainerStyle={styles.content}
+      ref={listRef}
+      automaticallyAdjustKeyboardInsets
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: contentBottomPadding },
+      ]}
+      contentInsetAdjustmentBehavior="automatic"
       data={historyState.transactions}
+      keyboardDismissMode="on-drag"
+      keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListEmptyComponent={null}
       ListFooterComponent={
@@ -455,6 +519,9 @@ export function HistoryScreen() {
             isDeleting={isDeleting}
             isEditing={isEditing}
             isSaving={isSaving}
+            onCardLayout={(event) => {
+              detailCardOffsetYRef.current = event.nativeEvent.layout.y;
+            }}
             onCancelEdit={() => {
               setIsEditing(false);
               setEditValues(editContext?.values ?? null);
@@ -463,6 +530,9 @@ export function HistoryScreen() {
             }}
             onConfirmDelete={() => setConfirmDelete(true)}
             onDelete={handleDelete}
+            onFieldFocus={createFocusHandler}
+            onFieldLayout={registerDetailField}
+            onFieldRef={registerInputRef}
             onEditValueChange={(patch) => {
               setEditValues((current) => {
                 if (!current || !editContext) {
@@ -514,6 +584,7 @@ export function HistoryScreen() {
         />
       )}
       showsVerticalScrollIndicator={false}
+      style={styles.screen}
     />
   );
 }
@@ -581,12 +652,16 @@ function TransactionDetailCard({
   isSaving,
   isDeleting,
   confirmDelete,
+  onCardLayout,
   onStartEdit,
   onCancelEdit,
   onEditValueChange,
   onSave,
   onConfirmDelete,
   onDelete,
+  onFieldFocus,
+  onFieldLayout,
+  onFieldRef,
 }: {
   detail: HistoryTransactionDetail;
   editContext: HistoryEditContext | null;
@@ -596,15 +671,25 @@ function TransactionDetailCard({
   isSaving: boolean;
   isDeleting: boolean;
   confirmDelete: boolean;
+  onCardLayout: (event: LayoutChangeEvent) => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
   onEditValueChange: (patch: Partial<EditableTransactionValues>) => void;
   onSave: () => void;
   onConfirmDelete: () => void;
   onDelete: () => void;
+  onFieldFocus: (fieldId: string) => () => void;
+  onFieldLayout: (fieldId: string) => (event: LayoutChangeEvent) => void;
+  onFieldRef: (fieldId: string) => (input: React.ComponentRef<typeof AppInput> | null) => void;
 }) {
+  const [previewAttachmentUri, setPreviewAttachmentUri] = useState<
+    string | null
+  >(null);
+  const previewAttachment = detail.attachments[0] ?? null;
+
   return (
-    <AppCard>
+    <View onLayout={onCardLayout}>
+      <AppCard>
       <Text style={styles.sectionTitle}>Szczegóły transakcji</Text>
       <Text style={styles.detailTitle}>
         {detail.description?.trim() ||
@@ -639,6 +724,34 @@ function TransactionDetailCard({
             <View style={styles.noteBox}>
               <Text style={styles.noteLabel}>Notatka</Text>
               <Text style={styles.noteText}>{detail.note}</Text>
+            </View>
+          ) : null}
+
+          {previewAttachment ? (
+            <View style={styles.attachmentSection}>
+              <Text style={styles.noteLabel}>
+                {previewAttachment.kind === 'receipt_photo'
+                  ? 'Paragon'
+                  : 'Załącznik'}
+              </Text>
+              <Pressable
+                onPress={() => setPreviewAttachmentUri(previewAttachment.fileUri)}
+                style={styles.attachmentCard}
+              >
+                <Image
+                  resizeMode="cover"
+                  source={{ uri: previewAttachment.fileUri }}
+                  style={styles.attachmentPreview}
+                />
+                <View style={styles.attachmentCopy}>
+                  <Text style={styles.attachmentTitle}>
+                    {previewAttachment.kind === 'receipt_photo'
+                      ? 'Podejrzyj paragon'
+                      : 'Podejrzyj załącznik'}
+                  </Text>
+                  <Text style={styles.attachmentHint}>Tapnij, aby otworzyć</Text>
+                </View>
+              </Pressable>
             </View>
           ) : null}
 
@@ -688,12 +801,16 @@ function TransactionDetailCard({
           </View>
 
           <FieldLabel label="Kwota" required />
-          <AppInput
-            keyboardType="decimal-pad"
-            onChangeText={(value) => onEditValueChange({ amountText: value })}
-            placeholder="Np. 34,90"
-            value={editValues.amountText}
-          />
+          <View onLayout={onFieldLayout('history_amount')}>
+            <AppInput
+              ref={onFieldRef('history_amount')}
+              keyboardType="decimal-pad"
+              onChangeText={(value) => onEditValueChange({ amountText: value })}
+              onFocus={onFieldFocus('history_amount')}
+              placeholder="Np. 34,90"
+              value={editValues.amountText}
+            />
+          </View>
           {editErrors.amountText ? (
             <Text style={styles.errorText}>{editErrors.amountText}</Text>
           ) : null}
@@ -714,11 +831,15 @@ function TransactionDetailCard({
           ) : null}
 
           <FieldLabel label="Data" required />
-          <AppInput
-            onChangeText={(value) => onEditValueChange({ date: value })}
-            placeholder="RRRR-MM-DD"
-            value={editValues.date}
-          />
+          <View onLayout={onFieldLayout('history_date')}>
+            <AppInput
+              ref={onFieldRef('history_date')}
+              onChangeText={(value) => onEditValueChange({ date: value })}
+              onFocus={onFieldFocus('history_date')}
+              placeholder="RRRR-MM-DD"
+              value={editValues.date}
+            />
+          </View>
           {editErrors.date ? (
             <Text style={styles.errorText}>{editErrors.date}</Text>
           ) : null}
@@ -738,19 +859,29 @@ function TransactionDetailCard({
           </View>
 
           <FieldLabel label="Opis" />
-          <AppInput
-            onChangeText={(value) => onEditValueChange({ description: value })}
-            placeholder="Np. Lidl albo przelew od klienta"
-            value={editValues.description}
-          />
+          <View onLayout={onFieldLayout('history_description')}>
+            <AppInput
+              ref={onFieldRef('history_description')}
+              onChangeText={(value) =>
+                onEditValueChange({ description: value })
+              }
+              onFocus={onFieldFocus('history_description')}
+              placeholder="Np. Lidl albo przelew od klienta"
+              value={editValues.description}
+            />
+          </View>
 
           <FieldLabel label="Notatka" />
-          <AppInput
-            multiline
-            onChangeText={(value) => onEditValueChange({ note: value })}
-            placeholder="Opcjonalny kontekst do transakcji"
-            value={editValues.note}
-          />
+          <View onLayout={onFieldLayout('history_note')}>
+            <AppInput
+              ref={onFieldRef('history_note')}
+              multiline
+              onChangeText={(value) => onEditValueChange({ note: value })}
+              onFocus={onFieldFocus('history_note')}
+              placeholder="Opcjonalny kontekst do transakcji"
+              value={editValues.note}
+            />
+          </View>
 
           <View style={styles.inlineActions}>
             <InlineButton
@@ -763,7 +894,31 @@ function TransactionDetailCard({
       ) : (
         <Text style={styles.helperText}>Przygotowuję formularz edycji...</Text>
       )}
-    </AppCard>
+
+      <Modal
+        animationType="fade"
+        onRequestClose={() => setPreviewAttachmentUri(null)}
+        transparent
+        visible={previewAttachmentUri !== null}
+      >
+        <Pressable
+          onPress={() => setPreviewAttachmentUri(null)}
+          style={styles.previewBackdrop}
+        >
+          <View style={styles.previewCard}>
+            {previewAttachmentUri ? (
+              <Image
+                resizeMode="contain"
+                source={{ uri: previewAttachmentUri }}
+                style={styles.previewImage}
+              />
+            ) : null}
+            <Text style={styles.previewHint}>Tapnij tło, aby zamknąć</Text>
+          </View>
+        </Pressable>
+      </Modal>
+      </AppCard>
+    </View>
   );
 }
 
@@ -902,6 +1057,10 @@ function resolveSelectedTransactionId(
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    backgroundColor: colors.background,
+    flex: 1,
+  },
   badge: {
     backgroundColor: colors.surfaceMuted,
     borderRadius: radius.pill,
@@ -929,6 +1088,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: spacing.sm,
+  },
+  attachmentCard: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: spacing.md,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+  },
+  attachmentCopy: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  attachmentHint: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+  },
+  attachmentPreview: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    height: 72,
+    width: 72,
+  },
+  attachmentSection: {
+    marginTop: spacing.md,
+  },
+  attachmentTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
   },
   chip: {
     borderRadius: radius.pill,
@@ -960,7 +1152,6 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   deleteBox: {
     backgroundColor: '#FFF2EF',
@@ -1093,6 +1284,28 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: typography.body,
     lineHeight: 22,
+  },
+  previewBackdrop: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(11, 18, 32, 0.88)',
+    flex: 1,
+    justifyContent: 'center',
+    padding: spacing.lg,
+  },
+  previewCard: {
+    alignItems: 'center',
+    gap: spacing.md,
+    width: '100%',
+  },
+  previewHint: {
+    color: colors.surface,
+    fontSize: typography.caption,
+  },
+  previewImage: {
+    borderRadius: radius.lg,
+    height: '80%',
+    maxHeight: 640,
+    width: '100%',
   },
   rowAmount: {
     fontSize: typography.body,

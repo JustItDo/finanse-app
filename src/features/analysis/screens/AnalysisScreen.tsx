@@ -11,7 +11,7 @@ import {
 } from '@/src/features/analysis/data/analysis';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppCard } from '@/src/shared/ui';
+import { AppCard, useScreenContentInsets } from '@/src/shared/ui';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
 const RANGE_OPTIONS: { label: string; value: AnalysisTimeRange }[] = [
@@ -21,6 +21,7 @@ const RANGE_OPTIONS: { label: string; value: AnalysisTimeRange }[] = [
 
 export function AnalysisScreen() {
   const { repositories, status, error } = useAppServices();
+  const { contentBottomPadding } = useScreenContentInsets();
   const isFocused = useIsFocused();
   const [range, setRange] = useState<AnalysisTimeRange>('current_month');
   const [analysis, setAnalysis] = useState<AnalysisState | null>(null);
@@ -68,7 +69,14 @@ export function AnalysisScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: contentBottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+      style={styles.screen}
+    >
       <View style={styles.hero}>
         <Text style={styles.title}>Analizy</Text>
         <Text style={styles.description}>

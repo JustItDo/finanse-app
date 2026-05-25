@@ -1,5 +1,8 @@
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
-import { createDatabaseContext, getDatabase } from '@/src/storage/sqlite/database';
+import {
+  createDatabaseContext,
+  getDatabase,
+} from '@/src/storage/sqlite/database';
 import { createAttachmentsRepository } from '@/src/storage/sqlite/repositories/AttachmentsRepository';
 import { createBudgetsRepository } from '@/src/storage/sqlite/repositories/BudgetsRepository';
 import { createCategoriesRepository } from '@/src/storage/sqlite/repositories/CategoriesRepository';
@@ -22,7 +25,9 @@ export async function createStorageServices() {
   };
 }
 
-export type AppRepositories = Awaited<ReturnType<typeof createStorageServices>>['repositories'];
+export type AppRepositories = Awaited<
+  ReturnType<typeof createStorageServices>
+>['repositories'];
 
 export function createBootstrapErrorRepositories(): AppRepositories {
   const notReady = async () => {
@@ -45,6 +50,8 @@ export function createBootstrapErrorRepositories(): AppRepositories {
     },
     categories: {
       count: notReady,
+      createCategory: notReady,
+      deleteCategory: notReady,
       listAll: notReady,
       listByTransactionType: notReady,
       updateCategory: notReady,

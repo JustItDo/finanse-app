@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Image,
@@ -36,7 +36,13 @@ import {
 } from '@/src/features/transactions/data/ocrImport';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  useFocusedFieldScroll,
+  useScreenContentInsets,
+} from '@/src/shared/ui';
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
 
 const paymentMethodOptions: {
@@ -59,6 +65,22 @@ type EntryMode = 'manual' | 'ocr';
 
 export function AddTransactionScreen() {
   const { repositories, status } = useAppServices();
+  const { contentBottomPadding } = useScreenContentInsets();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollToKeyboardTarget = (target: number, topOffset: number) => {
+    scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard?.(
+      target,
+      topOffset,
+      true,
+    );
+  };
+  const { createFocusHandler, registerField, registerInputRef, scrollToField } =
+    useFocusedFieldScroll(
+      (y) => {
+        scrollRef.current?.scrollTo({ animated: true, y });
+      },
+      { scrollToTarget: scrollToKeyboardTarget },
+    );
 
   const [context, setContext] = useState<TransactionFormContext | null>(null);
   const [form, setForm] = useState<TransactionFormValues | null>(null);
@@ -271,14 +293,20 @@ export function AddTransactionScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.screen}
     >
       <ScrollView
+        ref={scrollRef}
         automaticallyAdjustKeyboardInsets
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: contentBottomPadding },
+        ]}
+        contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
         keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
         style={styles.screen}
       >
         <View style={styles.hero}>
@@ -558,19 +586,23 @@ export function AddTransactionScreen() {
           </View>
 
           <FieldLabel label="Kwota" required />
-          <AppInput
-            keyboardType="decimal-pad"
-            onChangeText={(value) => {
-              setForm((current) =>
-                current ? { ...current, amountText: value } : current,
-              );
-              if (ocrCorrectionDraft) {
-                updateDraftField('amountText', value);
-              }
-            }}
-            placeholder="Np. 34,90"
-            value={form.amountText}
-          />
+          <View onLayout={registerField('main_amount')}>
+            <AppInput
+              ref={registerInputRef('main_amount')}
+              keyboardType="decimal-pad"
+              onChangeText={(value) => {
+                setForm((current) =>
+                  current ? { ...current, amountText: value } : current,
+                );
+                if (ocrCorrectionDraft) {
+                  updateDraftField('amountText', value);
+                }
+              }}
+              onFocus={createFocusHandler('main_amount')}
+              placeholder="Np. 34,90"
+              value={form.amountText}
+            />
+          </View>
           {errors.amountText ? (
             <Text style={styles.errorText}>{errors.amountText}</Text>
           ) : null}
@@ -613,7 +645,17 @@ export function AddTransactionScreen() {
           </View>
 
           <Pressable
-            onPress={() => setShowDetails((value) => !value)}
+            onPress={() =>
+              setShowDetails((value) => {
+                const nextValue = !value;
+
+                if (nextValue) {
+                  scrollToField('details_date');
+                }
+
+                return nextValue;
+              })
+            }
             style={styles.detailsToggle}
           >
             <Text style={styles.detailsToggleText}>
@@ -624,18 +666,22 @@ export function AddTransactionScreen() {
           {showDetails ? (
             <View style={styles.detailsSection}>
               <FieldLabel label="Data" required />
-              <AppInput
-                onChangeText={(value) => {
-                  setForm((current) =>
-                    current ? { ...current, date: value } : current,
-                  );
-                  if (ocrCorrectionDraft) {
-                    updateDraftField('date', value);
-                  }
-                }}
-                placeholder="RRRR-MM-DD"
-                value={form.date}
-              />
+              <View onLayout={registerField('details_date')}>
+                <AppInput
+                  ref={registerInputRef('details_date')}
+                  onChangeText={(value) => {
+                    setForm((current) =>
+                      current ? { ...current, date: value } : current,
+                    );
+                    if (ocrCorrectionDraft) {
+                      updateDraftField('date', value);
+                    }
+                  }}
+                  onFocus={createFocusHandler('details_date')}
+                  placeholder="RRRR-MM-DD"
+                  value={form.date}
+                />
+              </View>
               {errors.date ? (
                 <Text style={styles.errorText}>{errors.date}</Text>
               ) : null}
@@ -659,19 +705,23 @@ export function AddTransactionScreen() {
               </View>
 
               <FieldLabel label="Sklep / opis" />
-              <AppInput
-                multiline
-                onChangeText={(value) => {
-                  setForm((current) =>
-                    current ? { ...current, description: value } : current,
-                  );
-                  if (ocrCorrectionDraft) {
-                    updateDraftField('merchantName', value);
-                  }
-                }}
-                placeholder="Np. Lidl albo kawa po spotkaniu"
-                value={form.description}
-              />
+              <View onLayout={registerField('details_description')}>
+                <AppInput
+                  ref={registerInputRef('details_description')}
+                  multiline
+                  onChangeText={(value) => {
+                    setForm((current) =>
+                      current ? { ...current, description: value } : current,
+                    );
+                    if (ocrCorrectionDraft) {
+                      updateDraftField('merchantName', value);
+                    }
+                  }}
+                  onFocus={createFocusHandler('details_description')}
+                  placeholder="Np. Lidl albo kawa po spotkaniu"
+                  value={form.description}
+                />
+              </View>
             </View>
           ) : null}
 
@@ -861,7 +911,6 @@ const styles = StyleSheet.create({
   content: {
     gap: spacing.lg,
     padding: spacing.lg,
-    paddingBottom: spacing.xxl,
   },
   description: {
     color: colors.textMuted,

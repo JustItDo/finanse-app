@@ -9,6 +9,7 @@ import {
 
 const SECURITY_SETTINGS_KEY = 'security_settings';
 const SECURITY_PIN_KEY = 'security_pin';
+const SECURITY_SETUP_PROMPT_DISMISSED_KEY = 'security_setup_prompt_dismissed';
 const WEB_SECURITY_PREFIX = 'finansowy_copilot_security';
 
 type StoredSecuritySettings = {
@@ -110,4 +111,19 @@ export async function clearSecurity() {
     deleteItem(SECURITY_PIN_KEY),
     deleteItem(SECURITY_SETTINGS_KEY),
   ]);
+}
+
+export async function loadSecuritySetupPromptDismissed() {
+  const value = await readItem(SECURITY_SETUP_PROMPT_DISMISSED_KEY);
+
+  return value === '1';
+}
+
+export async function saveSecuritySetupPromptDismissed(dismissed: boolean) {
+  if (!dismissed) {
+    await deleteItem(SECURITY_SETUP_PROMPT_DISMISSED_KEY);
+    return;
+  }
+
+  await writeItem(SECURITY_SETUP_PROMPT_DISMISSED_KEY, '1');
 }

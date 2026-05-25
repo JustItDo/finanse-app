@@ -17,7 +17,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.finanseapp"
+      "package": "com.anonymous.finanseapp",
+      "permissions": [
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -39,6 +44,11 @@
           "photosPermission": "Aplikacja potrzebuje dostępu do zdjęć, żeby wybrać screen płatności albo obraz paragonu."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "869f10a2-5618-4a50-9453-572d503268e7"
+      }
+    }
   }
 }

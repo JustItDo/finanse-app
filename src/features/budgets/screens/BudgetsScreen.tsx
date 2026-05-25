@@ -1,8 +1,21 @@
-import type { Dispatch, SetStateAction } from 'react';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-
+import { FontAwesome5 } from '@expo/vector-icons';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  LayoutChangeEvent,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type TextInput,
+} from 'react-native';
+
+import { CATEGORY_ICON_OPTIONS } from '@/src/features/budgets/data/categoryIcons';
+import {
+  createCategoryConfig,
+  deleteCategoryConfig,
   loadBudgetSetup,
   saveCategoryConfig,
   saveMonthlyBudgetConfig,
@@ -13,7 +26,13 @@ import {
 } from '@/src/features/budgets/data/budgetSetup';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
+import {
+  AppButton,
+  AppCard,
+  AppInput,
+  useFocusedFieldScroll,
+  useScreenContentInsets,
+} from '@/src/shared/ui';
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
 import {
   formatMinorUnits,
@@ -22,17 +41,21 @@ import {
 } from '@/src/shared/utils/money';
 
 type CategoryDraft = {
+  icon: string | null;
   name: string;
   isActive: boolean;
   limitEnabled: boolean;
   limitText: string;
 };
 
+type CategoryTypeDraft = 'expense' | 'income';
+
 function createDrafts(setup: BudgetSetupState) {
   const drafts: Record<string, CategoryDraft> = {};
 
   [...setup.expenseCategories, ...setup.incomeCategories].forEach((item) => {
     drafts[item.category.id] = {
+      icon: item.category.icon,
       isActive: item.isActive,
       limitEnabled: item.budgetLimitMinor !== null,
       limitText: formatMinorUnitsInput(item.budgetLimitMinor),
@@ -41,6 +64,10 @@ function createDrafts(setup: BudgetSetupState) {
   });
 
   return drafts;
+}
+
+function getDefaultIconForType(type: CategoryTypeDraft) {
+  return type === 'income' ? 'coins' : 'receipt';
 }
 
 function formatUsage(usagePercent: number | null) {
@@ -71,7 +98,7 @@ function getCategoryStatusLabel(status: BudgetCategoryStatus) {
     case 'warning':
       return 'Blisko limitu';
     case 'on_track':
-      return 'Pod kontrolą';
+      return 'Z limitem';
     case 'no_limit':
       return 'Bez limitu';
     case 'inactive':
@@ -81,9 +108,51 @@ function getCategoryStatusLabel(status: BudgetCategoryStatus) {
   }
 }
 
+function buildCategoryPreview(item: BudgetCategoryItem, currencyCode: string) {
+  if (item.transactionType === 'income') {
+    return `Wpłynęło ${formatMinorUnits(item.spentMinor, currencyCode)}`;
+  }
+
+  if (!item.isActive) {
+    return 'Nie pokazuje się w szybkim wyborze.';
+  }
+
+  if (item.budgetLimitMinor === null) {
+    return `Wydano ${formatMinorUnits(item.spentMinor, currencyCode)}. Bez limitu.`;
+  }
+
+  return `${formatMinorUnits(item.spentMinor, currencyCode)} z ${formatMinorUnits(item.budgetLimitMinor, currencyCode)}`;
+}
+
+function flattenCategoryItems(setup: BudgetSetupState) {
+  return [
+    ...setup.problemExpenseCategories,
+    ...setup.stableExpenseCategories,
+    ...setup.uncappedExpenseCategories,
+    ...setup.inactiveExpenseCategories,
+    ...setup.incomeCategories,
+  ];
+}
+
 export function BudgetsScreen() {
   const { repositories, status } = useAppServices();
+  const { contentBottomPadding } = useScreenContentInsets();
   const monthKey = getCurrentMonthKey();
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollToKeyboardTarget = (target: number, topOffset: number) => {
+    scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard?.(
+      target,
+      topOffset,
+      true,
+    );
+  };
+  const { createFocusHandler, registerField, registerInputRef } =
+    useFocusedFieldScroll(
+      (y) => {
+        scrollRef.current?.scrollTo({ animated: true, y });
+      },
+      { scrollToTarget: scrollToKeyboardTarget },
+    );
 
   const [setup, setSetup] = useState<BudgetSetupState | null>(null);
   const [categoryDrafts, setCategoryDrafts] = useState<
@@ -92,8 +161,24 @@ export function BudgetsScreen() {
   const [monthBudgetEnabled, setMonthBudgetEnabled] = useState(false);
   const [monthBudgetText, setMonthBudgetText] = useState('');
   const [targetSavingsText, setTargetSavingsText] = useState('');
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategoryType, setNewCategoryType] =
+    useState<CategoryTypeDraft>('expense');
+  const [newCategoryIcon, setNewCategoryIcon] = useState<string | null>(
+    getDefaultIconForType('expense'),
+  );
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(
+    null,
+  );
+  const [deleteConfirmCategoryId, setDeleteConfirmCategoryId] = useState<
+    string | null
+  >(null);
   const [isSaving, setIsSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [feedbackMessage, setFeedbackMessage] = useState<string | null>(null);
+  const [detailCardOffsetY, setDetailCardOffsetY] = useState<number | null>(
+    null,
+  );
 
   const hydrate = (nextSetup: BudgetSetupState) => {
     setCategoryDrafts(createDrafts(nextSetup));
@@ -133,12 +218,49 @@ export function BudgetsScreen() {
       }
     };
 
-    load();
+    void load();
 
     return () => {
       cancelled = true;
     };
   }, [monthKey, repositories, status]);
+
+  const allCategoryItems = useMemo(
+    () => (setup ? flattenCategoryItems(setup) : []),
+    [setup],
+  );
+
+  const selectedCategoryItem = useMemo(
+    () =>
+      selectedCategoryId
+        ? (allCategoryItems.find(
+            (item) => item.category.id === selectedCategoryId,
+          ) ?? null)
+        : null,
+    [allCategoryItems, selectedCategoryId],
+  );
+  const activeSelectedCategoryId = selectedCategoryItem?.category.id ?? null;
+
+  useEffect(() => {
+    if (!selectedCategoryItem || detailCardOffsetY === null) {
+      return;
+    }
+
+    scrollRef.current?.scrollTo({
+      animated: true,
+      y: Math.max(detailCardOffsetY - spacing.lg, 0),
+    });
+  }, [detailCardOffsetY, selectedCategoryItem]);
+
+  const setDraftPatch = (categoryId: string, patch: Partial<CategoryDraft>) => {
+    setCategoryDrafts((current) => ({
+      ...current,
+      [categoryId]: {
+        ...current[categoryId],
+        ...patch,
+      },
+    }));
+  };
 
   const saveMonthBudget = async () => {
     if (!setup) {
@@ -146,6 +268,7 @@ export function BudgetsScreen() {
     }
 
     setErrorMessage(null);
+    setFeedbackMessage(null);
     setIsSaving(true);
 
     try {
@@ -167,7 +290,7 @@ export function BudgetsScreen() {
         targetSavingsText.trim() &&
         parsedTargetSavings === null
       ) {
-        throw new Error('Podaj poprawny miesięczny cel oszczędności.');
+        throw new Error('Podaj poprawny cel oszczędnościowy.');
       }
 
       await saveMonthlyBudgetConfig(repositories, {
@@ -178,6 +301,7 @@ export function BudgetsScreen() {
       });
 
       await reload();
+      setFeedbackMessage('Budżet miesiąca zapisany.');
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -197,6 +321,7 @@ export function BudgetsScreen() {
     }
 
     setErrorMessage(null);
+    setFeedbackMessage(null);
     setIsSaving(true);
 
     try {
@@ -224,12 +349,14 @@ export function BudgetsScreen() {
         categoryName: trimmedName,
         currencyCode: setup.currencyCode,
         isActive: draft.isActive,
+        icon: draft.icon,
         limitAmountMinor: isExpense && draft.isActive ? parsedLimit : null,
         monthKey: setup.monthKey,
         transactionType: item.transactionType,
       });
 
       await reload();
+      setFeedbackMessage('Kategoria zapisana.');
     } catch (error: unknown) {
       setErrorMessage(
         error instanceof Error
@@ -241,24 +368,72 @@ export function BudgetsScreen() {
     }
   };
 
-  const toggleCategoryActive = (categoryId: string) => {
-    setCategoryDrafts((current) => ({
-      ...current,
-      [categoryId]: {
-        ...current[categoryId],
-        isActive: !current[categoryId].isActive,
-      },
-    }));
+  const createCategory = async () => {
+    if (!newCategoryName.trim()) {
+      setErrorMessage('Podaj nazwę nowej kategorii.');
+      return;
+    }
+
+    setErrorMessage(null);
+    setFeedbackMessage(null);
+    setIsSaving(true);
+
+    try {
+      const created = await createCategoryConfig(repositories, {
+        icon: newCategoryIcon,
+        name: newCategoryName,
+        transactionType: newCategoryType,
+      });
+
+      await reload();
+      setNewCategoryName('');
+      setNewCategoryIcon(getDefaultIconForType(newCategoryType));
+      setSelectedCategoryId(created.id);
+      setFeedbackMessage('Dodano kategorię.');
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się dodać kategorii.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const toggleCategoryLimit = (categoryId: string) => {
-    setCategoryDrafts((current) => ({
-      ...current,
-      [categoryId]: {
-        ...current[categoryId],
-        limitEnabled: !current[categoryId].limitEnabled,
-      },
-    }));
+  const deleteCategory = async (item: BudgetCategoryItem) => {
+    if (!setup) {
+      return;
+    }
+
+    if (deleteConfirmCategoryId !== item.category.id) {
+      setDeleteConfirmCategoryId(item.category.id);
+      return;
+    }
+
+    setErrorMessage(null);
+    setFeedbackMessage(null);
+    setIsSaving(true);
+
+    try {
+      await deleteCategoryConfig(repositories, {
+        categoryId: item.category.id,
+        monthKey: setup.monthKey,
+      });
+
+      await reload();
+      setDeleteConfirmCategoryId(null);
+      setSelectedCategoryId(null);
+      setFeedbackMessage('Kategoria usunięta.');
+    } catch (error: unknown) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się usunąć kategorii.',
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (!setup) {
@@ -270,256 +445,320 @@ export function BudgetsScreen() {
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
-      <View style={styles.hero}>
-        <Text style={styles.title}>Budżety</Text>
-        <Text style={styles.description}>
-          Najpierw widać ryzyka, potem stabilne kategorie.
-        </Text>
-      </View>
-
-      {errorMessage ? (
-        <AppCard>
-          <Text style={styles.errorText}>{errorMessage}</Text>
-        </AppCard>
-      ) : null}
-
-      {!setup.hasMonthlyBudget && !setup.hasAnyConfiguredCategoryBudget ? (
-        <AppCard>
-          <Text style={styles.sectionTitle}>Start budżetów</Text>
-          <Text style={styles.helperText}>
-            Zacznij od budżetu miesiąca i limitów dla kilku głównych kategorii
-            wydatkowych. Resztę możesz zostawić aktywną bez limitu.
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.screen}
+    >
+      <ScrollView
+        ref={scrollRef}
+        automaticallyAdjustKeyboardInsets
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: contentBottomPadding },
+        ]}
+        contentInsetAdjustmentBehavior="automatic"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        style={styles.screen}
+      >
+        <View style={styles.hero}>
+          <Text style={styles.title}>Budżety</Text>
+          <Text style={styles.description}>
+            Lista kategorii i limitów na ten miesiąc.
           </Text>
-        </AppCard>
-      ) : null}
-
-      <AppCard>
-        <View style={styles.cardHeader}>
-          <View style={styles.cardHeaderCopy}>
-            <Text style={styles.sectionTitle}>Miesiąc pod kontrolą</Text>
-            <Text style={styles.helperText}>
-              Tu widać, czy cały miesiąc mieści się w planie i ile kategorii
-              wymaga już uwagi.
-            </Text>
-          </View>
-          <StatusBadge
-            label={getMonthStatusLabel(setup.monthlyBudgetStatus)}
-            status={setup.monthlyBudgetStatus}
-          />
         </View>
 
-        <View style={styles.metricsGrid}>
-          <Metric
-            label="Wydane"
-            value={formatMinorUnits(
-              setup.monthlySpentMinor,
-              setup.currencyCode,
-            )}
-          />
-          <Metric
-            label="Budżet miesiąca"
-            value={
-              setup.monthlyBudgetMinor === null
-                ? 'Nieustawiony'
-                : formatMinorUnits(setup.monthlyBudgetMinor, setup.currencyCode)
-            }
-          />
-          <Metric
-            label="Pozostało"
-            value={
-              setup.monthlyRemainingMinor === null
-                ? 'Bez limitu'
-                : formatMinorUnits(
-                    setup.monthlyRemainingMinor,
-                    setup.currencyCode,
-                  )
-            }
-          />
-          <Metric
-            label="Kategorie ryzyka"
-            value={String(setup.categoriesAtRiskCount)}
-          />
-          <Metric
-            label="Aktywne wydatki"
-            value={String(setup.activeExpenseCategoriesCount)}
-          />
-          <Metric
-            label="Bez limitu"
-            value={String(setup.uncappedExpenseCategoriesCount)}
-          />
-          <Metric
-            label="Cel oszczędności"
-            value={
-              setup.targetSavingsMinor === null
-                ? 'Nieustawiony'
-                : formatMinorUnits(setup.targetSavingsMinor, setup.currencyCode)
-            }
-          />
-        </View>
+        {errorMessage ? (
+          <AppCard>
+            <Text style={styles.errorText}>{errorMessage}</Text>
+          </AppCard>
+        ) : null}
 
-        {setup.monthlyBudgetUsageRatio !== null ? (
-          <>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>
-                Wykorzystanie budżetu miesiąca
-              </Text>
-              <Text style={styles.progressValue}>
-                {formatUsage(setup.monthlyBudgetUsagePercent)}
+        {feedbackMessage ? (
+          <AppCard>
+            <Text style={styles.feedbackText}>{feedbackMessage}</Text>
+          </AppCard>
+        ) : null}
+
+        <AppCard>
+          <View style={styles.cardHeader}>
+            <View style={styles.cardHeaderCopy}>
+              <Text style={styles.sectionTitle}>Miesiąc pod kontrolą</Text>
+              <Text style={styles.helperText}>
+                Szybki podgląd planu, wydatków i ryzyk.
               </Text>
             </View>
-            <ProgressBar
-              ratio={setup.monthlyBudgetUsageRatio}
+            <StatusBadge
+              label={getMonthStatusLabel(setup.monthlyBudgetStatus)}
               status={setup.monthlyBudgetStatus}
             />
-          </>
-        ) : null}
-      </AppCard>
+          </View>
 
-      <AppCard>
-        <Text style={styles.sectionTitle}>Ustawienia budżetu miesiąca</Text>
-        <Text style={styles.helperText}>
-          Budżet miesiąca jest opcjonalny. Cel oszczędności w MVP trzymamy w tym
-          samym planie miesiąca, więc działa tylko przy aktywnym budżecie
-          miesiąca.
-        </Text>
+          <View style={styles.metricsGrid}>
+            <Metric
+              label="Wydane"
+              value={formatMinorUnits(
+                setup.monthlySpentMinor,
+                setup.currencyCode,
+              )}
+            />
+            <Metric
+              label="Budżet miesiąca"
+              value={
+                setup.monthlyBudgetMinor === null
+                  ? 'Nieustawiony'
+                  : formatMinorUnits(
+                      setup.monthlyBudgetMinor,
+                      setup.currencyCode,
+                    )
+              }
+            />
+            <Metric
+              label="Pozostało"
+              value={
+                setup.monthlyRemainingMinor === null
+                  ? 'Bez limitu'
+                  : formatMinorUnits(
+                      setup.monthlyRemainingMinor,
+                      setup.currencyCode,
+                    )
+              }
+            />
+            <Metric
+              label="Kategorie ryzyka"
+              value={String(setup.categoriesAtRiskCount)}
+            />
+            <Metric
+              label="Kategorie z limitem"
+              value={String(
+                setup.activeExpenseCategoriesCount -
+                  setup.uncappedExpenseCategoriesCount,
+              )}
+            />
+            <Metric
+              label="Kategorie bez limitu"
+              value={String(setup.uncappedExpenseCategoriesCount)}
+            />
+            <Metric
+              label="Cel oszczędnościowy"
+              value={
+                setup.targetSavingsMinor === null
+                  ? 'Nieustawiony'
+                  : formatMinorUnits(
+                      setup.targetSavingsMinor,
+                      setup.currencyCode,
+                    )
+              }
+            />
+          </View>
 
-        <View style={styles.row}>
-          <ToggleChip
-            active={monthBudgetEnabled}
-            label={
-              monthBudgetEnabled
-                ? 'Budżet miesiąca aktywny'
-                : 'Budżet miesiąca wyłączony'
-            }
-            onPress={() => setMonthBudgetEnabled((value) => !value)}
-          />
-        </View>
-
-        <AppInput
-          editable={monthBudgetEnabled}
-          keyboardType="decimal-pad"
-          onChangeText={setMonthBudgetText}
-          placeholder="Np. 4700,00"
-          value={monthBudgetText}
-        />
-
-        <AppInput
-          editable={monthBudgetEnabled}
-          keyboardType="decimal-pad"
-          onChangeText={setTargetSavingsText}
-          placeholder="Cel oszczędności, np. 1200,00"
-          value={targetSavingsText}
-        />
-
-        <AppButton
-          label={isSaving ? 'Zapisywanie...' : 'Zapisz budżet miesiąca'}
-          onPress={saveMonthBudget}
-        />
-      </AppCard>
-
-      {setup.problemExpenseCategories.length > 0 ? (
-        <BudgetSection
-          currencyCode={setup.currencyCode}
-          drafts={categoryDrafts}
-          items={setup.problemExpenseCategories}
-          onChangeDraft={setCategoryDrafts}
-          onSaveCategory={saveCategory}
-          onToggleActive={toggleCategoryActive}
-          onToggleLimit={toggleCategoryLimit}
-          subtitle="Te kategorie są już ponad limitem albo zbliżają się do niego."
-          title="Wymagają uwagi"
-        />
-      ) : null}
-
-      <BudgetSection
-        currencyCode={setup.currencyCode}
-        drafts={categoryDrafts}
-        items={setup.stableExpenseCategories}
-        onChangeDraft={setCategoryDrafts}
-        onSaveCategory={saveCategory}
-        onToggleActive={toggleCategoryActive}
-        onToggleLimit={toggleCategoryLimit}
-        subtitle="Aktywne kategorie z limitem, które są na razie pod kontrolą."
-        title="Aktywne i pod kontrolą"
-      />
-
-      {setup.uncappedExpenseCategories.length > 0 ? (
-        <BudgetSection
-          currencyCode={setup.currencyCode}
-          drafts={categoryDrafts}
-          items={setup.uncappedExpenseCategories}
-          onChangeDraft={setCategoryDrafts}
-          onSaveCategory={saveCategory}
-          onToggleActive={toggleCategoryActive}
-          onToggleLimit={toggleCategoryLimit}
-          subtitle="Kategorie bez limitu dalej zbierają wydatki, ale nie ostrzegają przed przekroczeniem."
-          title="Aktywne bez limitu"
-        />
-      ) : null}
-
-      {setup.inactiveExpenseCategories.length > 0 ? (
-        <BudgetSection
-          currencyCode={setup.currencyCode}
-          drafts={categoryDrafts}
-          items={setup.inactiveExpenseCategories}
-          onChangeDraft={setCategoryDrafts}
-          onSaveCategory={saveCategory}
-          onToggleActive={toggleCategoryActive}
-          onToggleLimit={toggleCategoryLimit}
-          subtitle="Nieaktywne kategorie zostają na dole, żeby nie zaśmiecać codziennej kontroli."
-          title="Nieaktywne kategorie"
-        />
-      ) : null}
-
-      <AppCard>
-        <Text style={styles.sectionTitle}>Kategorie przychodów</Text>
-        <Text style={styles.helperText}>
-          W MVP przychody zostają proste: widać realne wpływy, bez osobnych
-          celów i limitów.
-        </Text>
-
-        <View style={styles.categoryList}>
-          {setup.incomeCategories.map((item) =>
-            categoryDrafts[item.category.id] ? (
-              <CategoryBudgetCard
-                key={item.category.id}
-                currencyCode={setup.currencyCode}
-                draft={categoryDrafts[item.category.id]}
-                item={item}
-                onChangeDraft={setCategoryDrafts}
-                onSave={() => saveCategory(item)}
-                onToggleActive={() => toggleCategoryActive(item.category.id)}
-                onToggleLimit={() => toggleCategoryLimit(item.category.id)}
+          {setup.monthlyBudgetUsageRatio !== null ? (
+            <>
+              <View style={styles.progressHeader}>
+                <Text style={styles.progressLabel}>Wykorzystanie miesiąca</Text>
+                <Text style={styles.progressValue}>
+                  {formatUsage(setup.monthlyBudgetUsagePercent)}
+                </Text>
+              </View>
+              <ProgressBar
+                ratio={setup.monthlyBudgetUsageRatio}
+                status={setup.monthlyBudgetStatus}
               />
-            ) : null,
-          )}
-        </View>
-      </AppCard>
-    </ScrollView>
+            </>
+          ) : null}
+        </AppCard>
+
+        <AppCard>
+          <Text style={styles.sectionTitle}>Plan miesiąca</Text>
+          <Text style={styles.helperText}>
+            Budżet i cel oszczędnościowy ustawiasz raz na miesiąc.
+          </Text>
+
+          <View style={styles.row}>
+            <ToggleChip
+              active={monthBudgetEnabled}
+              label={
+                monthBudgetEnabled
+                  ? 'Budżet miesiąca aktywny'
+                  : 'Budżet miesiąca wyłączony'
+              }
+              onPress={() => setMonthBudgetEnabled((value) => !value)}
+            />
+          </View>
+
+          <View onLayout={registerField('month_budget')}>
+            <AppInput
+              ref={registerInputRef('month_budget')}
+              editable={monthBudgetEnabled}
+              keyboardType="decimal-pad"
+              onChangeText={setMonthBudgetText}
+              onFocus={createFocusHandler('month_budget')}
+              placeholder="Budżet miesiąca, np. 4700,00"
+              value={monthBudgetText}
+            />
+          </View>
+
+          <View onLayout={registerField('target_savings')}>
+            <AppInput
+              ref={registerInputRef('target_savings')}
+              editable={monthBudgetEnabled}
+              keyboardType="decimal-pad"
+              onChangeText={setTargetSavingsText}
+              onFocus={createFocusHandler('target_savings')}
+              placeholder="Cel oszczędnościowy, np. 1200,00"
+              value={targetSavingsText}
+            />
+          </View>
+
+          <AppButton
+            label={isSaving ? 'Zapisywanie...' : 'Zapisz plan miesiąca'}
+            onPress={saveMonthBudget}
+          />
+        </AppCard>
+
+        <AppCard>
+          <Text style={styles.sectionTitle}>Dodaj kategorię</Text>
+          <Text style={styles.helperText}>
+            Własną kategorię dodasz od razu do listy budżetów.
+          </Text>
+
+          <View style={styles.row}>
+            <ToggleChip
+              active={newCategoryType === 'expense'}
+              label="Wydatek"
+              onPress={() => {
+                setNewCategoryType('expense');
+                setNewCategoryIcon((current) => current ?? 'receipt');
+              }}
+            />
+            <ToggleChip
+              active={newCategoryType === 'income'}
+              label="Przychód"
+              onPress={() => {
+                setNewCategoryType('income');
+                setNewCategoryIcon((current) => current ?? 'coins');
+              }}
+            />
+          </View>
+
+          <View style={styles.iconPickerBlock}>
+            <Text style={styles.label}>Ikona na dashboardzie</Text>
+            <CollapsibleIconPicker
+              selectedIcon={newCategoryIcon}
+              onSelect={(icon) => setNewCategoryIcon(icon)}
+            />
+          </View>
+
+          <View onLayout={registerField('new_category_name')}>
+            <AppInput
+              ref={registerInputRef('new_category_name')}
+              onChangeText={setNewCategoryName}
+              onFocus={createFocusHandler('new_category_name')}
+              placeholder="Np. Zwierzęta albo Edukacja"
+              value={newCategoryName}
+            />
+          </View>
+
+          <AppButton
+            disabled={isSaving || !newCategoryName.trim()}
+            label="Dodaj kategorię"
+            onPress={createCategory}
+          />
+        </AppCard>
+
+        {selectedCategoryItem ? (
+          <CategoryDetailCard
+            currencyCode={setup.currencyCode}
+            deleteConfirmCategoryId={deleteConfirmCategoryId}
+            draft={categoryDrafts[selectedCategoryItem.category.id]}
+            isSaving={isSaving}
+            item={selectedCategoryItem}
+            onCardLayout={(event) =>
+              setDetailCardOffsetY(event.nativeEvent.layout.y)
+            }
+            onChangeDraft={setDraftPatch}
+            onClose={() => {
+              setSelectedCategoryId(null);
+              setDeleteConfirmCategoryId(null);
+            }}
+            onDelete={() => deleteCategory(selectedCategoryItem)}
+            onFieldFocus={createFocusHandler}
+            onFieldLayout={registerField}
+            onFieldRef={registerInputRef}
+            onSave={() => saveCategory(selectedCategoryItem)}
+          />
+        ) : null}
+
+        {setup.problemExpenseCategories.length > 0 ? (
+          <BudgetListSection
+            currencyCode={setup.currencyCode}
+            items={setup.problemExpenseCategories}
+            onSelect={setSelectedCategoryId}
+            selectedCategoryId={activeSelectedCategoryId}
+            subtitle="Najpierw sprawdź te pozycje."
+            title="Wymagają uwagi"
+          />
+        ) : null}
+
+        <BudgetListSection
+          currencyCode={setup.currencyCode}
+          items={setup.stableExpenseCategories}
+          onSelect={setSelectedCategoryId}
+          selectedCategoryId={activeSelectedCategoryId}
+          subtitle="Aktywne kategorie z limitem."
+          title="Kategorie z limitem"
+        />
+
+        {setup.uncappedExpenseCategories.length > 0 ? (
+          <BudgetListSection
+            currencyCode={setup.currencyCode}
+            items={setup.uncappedExpenseCategories}
+            onSelect={setSelectedCategoryId}
+            selectedCategoryId={activeSelectedCategoryId}
+            subtitle="Zbierają wydatki bez progu."
+            title="Kategorie bez limitu"
+          />
+        ) : null}
+
+        {setup.inactiveExpenseCategories.length > 0 ? (
+          <BudgetListSection
+            currencyCode={setup.currencyCode}
+            items={setup.inactiveExpenseCategories}
+            onSelect={setSelectedCategoryId}
+            selectedCategoryId={activeSelectedCategoryId}
+            subtitle="Ukryte w codziennym wyborze."
+            title="Nieaktywne kategorie"
+          />
+        ) : null}
+
+        <BudgetListSection
+          currencyCode={setup.currencyCode}
+          items={setup.incomeCategories}
+          onSelect={setSelectedCategoryId}
+          selectedCategoryId={activeSelectedCategoryId}
+          subtitle="Przychody bez osobnych limitów."
+          title="Kategorie przychodów"
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
-function BudgetSection({
+function BudgetListSection({
   title,
   subtitle,
   items,
-  drafts,
   currencyCode,
-  onChangeDraft,
-  onToggleActive,
-  onToggleLimit,
-  onSaveCategory,
+  selectedCategoryId,
+  onSelect,
 }: {
   title: string;
   subtitle: string;
   items: BudgetCategoryItem[];
-  drafts: Record<string, CategoryDraft>;
   currencyCode: string;
-  onChangeDraft: Dispatch<SetStateAction<Record<string, CategoryDraft>>>;
-  onToggleActive: (categoryId: string) => void;
-  onToggleLimit: (categoryId: string) => void;
-  onSaveCategory: (item: BudgetCategoryItem) => void;
+  selectedCategoryId: string | null;
+  onSelect: (categoryId: string) => void;
 }) {
   if (items.length === 0) {
     return null;
@@ -530,164 +769,333 @@ function BudgetSection({
       <Text style={styles.sectionTitle}>{title}</Text>
       <Text style={styles.helperText}>{subtitle}</Text>
       <View style={styles.categoryList}>
-        {items.map((item) =>
-          drafts[item.category.id] ? (
-            <CategoryBudgetCard
-              key={item.category.id}
-              currencyCode={currencyCode}
-              draft={drafts[item.category.id]}
-              item={item}
-              onChangeDraft={onChangeDraft}
-              onSave={() => onSaveCategory(item)}
-              onToggleActive={() => onToggleActive(item.category.id)}
-              onToggleLimit={() => onToggleLimit(item.category.id)}
-            />
-          ) : null,
-        )}
+        {items.map((item) => (
+          <CategoryListItem
+            key={item.category.id}
+            currencyCode={currencyCode}
+            isSelected={selectedCategoryId === item.category.id}
+            item={item}
+            onPress={() => onSelect(item.category.id)}
+          />
+        ))}
       </View>
     </AppCard>
   );
 }
 
-function CategoryBudgetCard({
+function CategoryListItem({
   item,
-  draft,
   currencyCode,
-  onChangeDraft,
-  onToggleActive,
-  onToggleLimit,
-  onSave,
+  isSelected,
+  onPress,
 }: {
   item: BudgetCategoryItem;
-  draft: CategoryDraft;
   currencyCode: string;
-  onChangeDraft: Dispatch<SetStateAction<Record<string, CategoryDraft>>>;
-  onToggleActive: () => void;
-  onToggleLimit: () => void;
-  onSave: () => void;
+  isSelected: boolean;
+  onPress: () => void;
 }) {
-  const isIncomeCategory = item.transactionType === 'income';
-  const supportsBudget =
-    item.transactionType === 'expense' || item.transactionType === 'both';
-
   return (
-    <View style={styles.categoryCard}>
-      <View style={styles.categoryHeader}>
-        <View style={styles.categoryHeaderText}>
-          <Text style={styles.categoryName}>{item.category.name}</Text>
-          <Text style={styles.categoryMeta}>
-            {isIncomeCategory
-              ? `Wpłynęło: ${formatMinorUnits(item.spentMinor, currencyCode)}`
-              : item.budgetLimitMinor === null
-                ? `Wydano: ${formatMinorUnits(item.spentMinor, currencyCode)} • Bez limitu`
-                : `Wydano: ${formatMinorUnits(item.spentMinor, currencyCode)} • Limit: ${formatMinorUnits(item.budgetLimitMinor, currencyCode)}`}
-          </Text>
-        </View>
+    <Pressable
+      onPress={onPress}
+      style={[styles.listItem, isSelected ? styles.listItemSelected : null]}
+    >
+      <View
+        style={[
+          styles.categoryIconWrap,
+          item.category.color
+            ? { backgroundColor: `${item.category.color}20` }
+            : null,
+        ]}
+      >
+        {item.category.icon ? (
+          <FontAwesome5
+            color={item.category.color ?? colors.primary}
+            iconStyle="solid"
+            name={item.category.icon as keyof typeof FontAwesome5.glyphMap}
+            size={14}
+          />
+        ) : (
+          <FontAwesome5
+            color={colors.primary}
+            iconStyle="solid"
+            name="receipt"
+            size={14}
+          />
+        )}
+      </View>
+      <View style={styles.listItemCopy}>
+        <Text style={styles.categoryName}>{item.category.name}</Text>
+        <Text style={styles.categoryMeta}>
+          {buildCategoryPreview(item, currencyCode)}
+        </Text>
+      </View>
+      <View style={styles.listItemMeta}>
         <StatusBadge
           label={getCategoryStatusLabel(item.status)}
           status={item.status}
         />
+        <Text style={styles.listItemAction}>
+          {isSelected ? 'Wybrane' : 'Otwórz'}
+        </Text>
       </View>
+    </Pressable>
+  );
+}
 
-      {!isIncomeCategory && item.usageRatio !== null ? (
-        <>
-          <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Wykorzystanie kategorii</Text>
-            <Text style={styles.progressValue}>
-              {formatUsage(item.usagePercent)}
+function CategoryDetailCard({
+  item,
+  draft,
+  currencyCode,
+  isSaving,
+  deleteConfirmCategoryId,
+  onCardLayout,
+  onChangeDraft,
+  onSave,
+  onDelete,
+  onFieldFocus,
+  onFieldLayout,
+  onFieldRef,
+  onClose,
+}: {
+  item: BudgetCategoryItem;
+  draft: CategoryDraft | undefined;
+  currencyCode: string;
+  isSaving: boolean;
+  deleteConfirmCategoryId: string | null;
+  onCardLayout: (event: LayoutChangeEvent) => void;
+  onChangeDraft: (categoryId: string, patch: Partial<CategoryDraft>) => void;
+  onSave: () => void;
+  onDelete: () => void;
+  onFieldFocus: (fieldId: string) => () => void;
+  onFieldLayout: (fieldId: string) => (event: LayoutChangeEvent) => void;
+  onFieldRef: (fieldId: string) => (input: TextInput | null) => void;
+  onClose: () => void;
+}) {
+  if (!draft) {
+    return null;
+  }
+
+  const supportsBudget =
+    item.transactionType === 'expense' || item.transactionType === 'both';
+  const deleteNeedsConfirm = deleteConfirmCategoryId === item.category.id;
+
+  return (
+    <View onLayout={onCardLayout}>
+      <AppCard>
+        <View style={styles.cardHeader}>
+          <View style={styles.cardHeaderCopy}>
+            <Text style={styles.sectionTitle}>{item.category.name}</Text>
+            <Text style={styles.helperText}>
+              Tu zmienisz nazwę, aktywność i limit tej kategorii.
             </Text>
           </View>
-          <ProgressBar ratio={item.usageRatio} status={item.status} />
-        </>
-      ) : null}
+          <StatusBadge
+            label={getCategoryStatusLabel(item.status)}
+            status={item.status}
+          />
+        </View>
 
-      <View style={styles.metricsRow}>
-        <MiniMetric
-          label={isIncomeCategory ? 'Wpłynęło' : 'Wydano'}
-          value={formatMinorUnits(item.spentMinor, currencyCode)}
-        />
-        <MiniMetric
-          label={isIncomeCategory ? 'Status' : 'Pozostało'}
-          value={
-            isIncomeCategory
-              ? getCategoryStatusLabel(item.status)
-              : item.remainingMinor === null
-                ? 'Bez limitu'
-                : formatMinorUnits(item.remainingMinor, currencyCode)
-          }
-        />
-        <MiniMetric
-          label={isIncomeCategory ? 'Aktywność' : 'Wykorzystanie'}
-          value={
-            isIncomeCategory
-              ? item.isActive
-                ? 'Aktywna'
-                : 'Nieaktywna'
-              : formatUsage(item.usagePercent)
-          }
-        />
-      </View>
+        <View style={styles.metricsRow}>
+          <MiniMetric
+            label={item.transactionType === 'income' ? 'Wpłynęło' : 'Wydano'}
+            value={formatMinorUnits(item.spentMinor, currencyCode)}
+          />
+          <MiniMetric
+            label={supportsBudget ? 'Pozostało' : 'Status'}
+            value={
+              supportsBudget
+                ? item.remainingMinor === null
+                  ? 'Bez limitu'
+                  : formatMinorUnits(item.remainingMinor, currencyCode)
+                : getCategoryStatusLabel(item.status)
+            }
+          />
+          <MiniMetric
+            label="Typ"
+            value={item.transactionType === 'income' ? 'Przychód' : 'Wydatek'}
+          />
+        </View>
 
-      <View style={styles.row}>
-        <ToggleChip
-          active={draft.isActive}
-          label={draft.isActive ? 'Aktywna' : 'Nieaktywna'}
-          onPress={onToggleActive}
-        />
-      </View>
+        <View style={styles.row}>
+          <ToggleChip
+            active={draft.isActive}
+            label={draft.isActive ? 'Aktywna' : 'Nieaktywna'}
+            onPress={() =>
+              onChangeDraft(item.category.id, { isActive: !draft.isActive })
+            }
+          />
+        </View>
 
-      <AppInput
-        onChangeText={(value) =>
-          onChangeDraft((current) => ({
-            ...current,
-            [item.category.id]: {
-              ...current[item.category.id],
-              name: value,
-            },
-          }))
-        }
-        placeholder="Nazwa kategorii"
-        value={draft.name}
-      />
+        <View onLayout={onFieldLayout(`category_name_${item.category.id}`)}>
+          <AppInput
+            ref={onFieldRef(`category_name_${item.category.id}`)}
+            onChangeText={(value) =>
+              onChangeDraft(item.category.id, { name: value })
+            }
+            onFocus={onFieldFocus(`category_name_${item.category.id}`)}
+            placeholder="Nazwa kategorii"
+            value={draft.name}
+          />
+        </View>
 
-      {supportsBudget ? (
-        <>
-          <View style={styles.row}>
-            <ToggleChip
-              active={draft.limitEnabled}
-              label={draft.limitEnabled ? 'Limit aktywny' : 'Bez limitu'}
-              onPress={onToggleLimit}
+        <View style={styles.iconPickerBlock}>
+          <Text style={styles.label}>Ikona na dashboardzie</Text>
+          <CollapsibleIconPicker
+            selectedIcon={draft.icon}
+            onSelect={(icon) => onChangeDraft(item.category.id, { icon })}
+          />
+        </View>
+
+        {supportsBudget ? (
+          <>
+            <View style={styles.row}>
+              <ToggleChip
+                active={draft.limitEnabled}
+                label={draft.limitEnabled ? 'Limit aktywny' : 'Bez limitu'}
+                onPress={() =>
+                  onChangeDraft(item.category.id, {
+                    limitEnabled: !draft.limitEnabled,
+                  })
+                }
+              />
+            </View>
+
+            <View
+              onLayout={onFieldLayout(`category_limit_${item.category.id}`)}
+            >
+              <AppInput
+                ref={onFieldRef(`category_limit_${item.category.id}`)}
+                editable={draft.limitEnabled}
+                keyboardType="decimal-pad"
+                onChangeText={(value) =>
+                  onChangeDraft(item.category.id, { limitText: value })
+                }
+                onFocus={onFieldFocus(`category_limit_${item.category.id}`)}
+                placeholder="Limit kategorii, np. 500,00"
+                value={draft.limitText}
+              />
+            </View>
+          </>
+        ) : null}
+
+        {item.status === 'over_budget' ? (
+          <Text style={styles.errorText}>
+            Ta kategoria jest już ponad limitem.
+          </Text>
+        ) : item.status === 'warning' ? (
+          <Text style={styles.warningText}>
+            Ta kategoria jest blisko limitu.
+          </Text>
+        ) : null}
+
+        <Text style={styles.helperText}>
+          Usunięcie odłączy stare transakcje od tej kategorii i usunie jej limit
+          z tego miesiąca.
+        </Text>
+
+        <View style={styles.inlineActions}>
+          <View style={styles.inlineAction}>
+            <AppButton
+              disabled={isSaving}
+              label="Zamknij"
+              onPress={onClose}
+              variant="secondary"
             />
           </View>
-          <AppInput
-            editable={draft.limitEnabled}
-            keyboardType="decimal-pad"
-            onChangeText={(value) =>
-              onChangeDraft((current) => ({
-                ...current,
-                [item.category.id]: {
-                  ...current[item.category.id],
-                  limitText: value,
-                },
-              }))
-            }
-            placeholder="Np. 500,00"
-            value={draft.limitText}
-          />
-        </>
-      ) : null}
+          <View style={styles.inlineAction}>
+            <AppButton
+              disabled={isSaving}
+              label={deleteNeedsConfirm ? 'Potwierdź usunięcie' : 'Usuń'}
+              onPress={onDelete}
+              variant="secondary"
+            />
+          </View>
+        </View>
 
-      {item.status === 'over_budget' ? (
-        <Text style={styles.errorText}>
-          Ta kategoria jest już ponad limitem.
-        </Text>
-      ) : item.status === 'warning' ? (
-        <Text style={styles.warningText}>
-          Ta kategoria zbliża się do limitu i wymaga uwagi.
-        </Text>
-      ) : null}
+        <AppButton
+          disabled={isSaving}
+          label={isSaving ? 'Zapisywanie...' : 'Zapisz kategorię'}
+          onPress={onSave}
+        />
+      </AppCard>
+    </View>
+  );
+}
 
-      <AppButton label="Zapisz kategorię" onPress={onSave} />
+function CollapsibleIconPicker({
+  selectedIcon,
+  onSelect,
+}: {
+  selectedIcon: string | null;
+  onSelect: (icon: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const selectedOption =
+    CATEGORY_ICON_OPTIONS.find((option) => option.key === selectedIcon) ?? null;
+
+  return (
+    <View style={styles.iconPickerWrap}>
+      <Pressable
+        onPress={() => setIsOpen((current) => !current)}
+        style={styles.iconPickerTrigger}
+      >
+        <View style={styles.iconPickerTriggerValue}>
+          <View style={styles.categoryIconWrap}>
+            <FontAwesome5
+              color={colors.primary}
+              iconStyle="solid"
+              name={
+                (selectedIcon ??
+                  'receipt') as keyof typeof FontAwesome5.glyphMap
+              }
+              size={14}
+            />
+          </View>
+          <Text style={styles.iconPickerTriggerLabel}>
+            {selectedOption?.label ?? 'Wybierz ikonę'}
+          </Text>
+        </View>
+        <Text style={styles.iconPickerTriggerAction}>
+          {isOpen ? 'Zwiń' : 'Rozwiń'}
+        </Text>
+      </Pressable>
+
+      {isOpen ? (
+        <View style={styles.iconGrid}>
+          {CATEGORY_ICON_OPTIONS.map((option) => {
+            const active = selectedIcon === option.key;
+
+            return (
+              <Pressable
+                key={option.key}
+                onPress={() => {
+                  onSelect(option.key);
+                  setIsOpen(false);
+                }}
+                style={[
+                  styles.iconOption,
+                  active ? styles.iconOptionActive : null,
+                ]}
+              >
+                <FontAwesome5
+                  color={active ? colors.primary : colors.text}
+                  iconStyle="solid"
+                  name={option.key}
+                  size={16}
+                />
+                <Text
+                  style={[
+                    styles.iconOptionLabel,
+                    active ? styles.iconOptionLabelActive : null,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -842,15 +1250,24 @@ const styles = StyleSheet.create({
   },
   helperText: {
     color: colors.textMuted,
-    lineHeight: 22,
+    lineHeight: 20,
+  },
+  label: {
+    color: colors.text,
+    fontSize: typography.caption,
+    fontWeight: '600',
+  },
+  feedbackText: {
+    color: colors.primary,
+    fontWeight: '700',
   },
   errorText: {
     color: colors.danger,
-    lineHeight: 22,
+    lineHeight: 20,
   },
   warningText: {
     color: '#A96300',
-    lineHeight: 22,
+    lineHeight: 20,
   },
   metricsGrid: {
     gap: spacing.md,
@@ -906,6 +1323,68 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  iconPickerBlock: {
+    gap: spacing.sm,
+  },
+  iconPickerWrap: {
+    gap: spacing.sm,
+  },
+  iconPickerTrigger: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  iconPickerTriggerValue: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  iconPickerTriggerLabel: {
+    color: colors.text,
+    fontWeight: '600',
+  },
+  iconPickerTriggerAction: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '600',
+  },
+  iconGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  iconOption: {
+    alignItems: 'center',
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    gap: spacing.xs,
+    minWidth: 76,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
+  iconOptionActive: {
+    backgroundColor: colors.primarySoft,
+    borderColor: colors.primary,
+  },
+  iconOptionLabel: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  iconOptionLabelActive: {
+    color: colors.primary,
   },
   toggleChip: {
     borderRadius: radius.pill,
@@ -962,24 +1441,42 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
   },
   categoryList: {
-    gap: spacing.lg,
+    gap: spacing.md,
   },
-  categoryCard: {
+  categoryIconWrap: {
+    alignItems: 'center',
+    backgroundColor: colors.primarySoft,
+    borderRadius: radius.md,
+    height: 36,
+    justifyContent: 'center',
+    width: 36,
+  },
+  listItem: {
+    alignItems: 'center',
     borderColor: colors.border,
     borderRadius: radius.md,
     borderWidth: 1,
-    gap: spacing.md,
-    padding: spacing.md,
-  },
-  categoryHeader: {
-    alignItems: 'flex-start',
     flexDirection: 'row',
     gap: spacing.md,
     justifyContent: 'space-between',
+    padding: spacing.md,
   },
-  categoryHeaderText: {
+  listItemSelected: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primarySoft,
+  },
+  listItemCopy: {
     flex: 1,
     gap: spacing.xs,
+  },
+  listItemMeta: {
+    alignItems: 'flex-end',
+    gap: spacing.xs,
+  },
+  listItemAction: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    fontWeight: '600',
   },
   categoryName: {
     color: colors.text,
@@ -1011,6 +1508,13 @@ const styles = StyleSheet.create({
   miniMetricValue: {
     color: colors.text,
     fontWeight: '700',
+  },
+  inlineActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  inlineAction: {
+    flex: 1,
   },
   loadingState: {
     alignItems: 'center',

@@ -30,8 +30,10 @@ import {
   clearSecurity,
   getStoredPin,
   loadSecuritySettings,
+  loadSecuritySetupPromptDismissed,
   savePin,
   saveSecuritySettings,
+  saveSecuritySetupPromptDismissed,
 } from '@/src/features/security/data/securityStorage';
 import { SecurityLockScreen } from '@/src/features/security/components/SecurityLockScreen';
 import { colors, spacing } from '@/src/shared/theme';
@@ -42,12 +44,16 @@ type SecurityContextValue = {
   capabilities: SecurityCapabilities;
   isLocked: boolean;
   isUnlocking: boolean;
+  shouldPromptSecuritySetup: boolean;
   enablePin: (pin: string, biometricEnabled: boolean) => Promise<void>;
   changePin: (currentPin: string, nextPin: string) => Promise<void>;
   disableSecurity: (pin: string) => Promise<void>;
   unlockWithPin: (pin: string) => Promise<boolean>;
   unlockWithBiometrics: () => Promise<boolean>;
   setBiometricEnabled: (enabled: boolean) => Promise<void>;
+  disableBiometricsWithPin: (pin: string) => Promise<boolean>;
+  disableBiometricsWithBiometrics: () => Promise<boolean>;
+  dismissSecuritySetupPrompt: () => Promise<void>;
 };
 
 const defaultCapabilities: SecurityCapabilities = {
@@ -110,6 +116,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     useState<SecurityCapabilities>(defaultCapabilities);
   const [isLocked, setIsLocked] = useState(false);
   const [isUnlocking, setIsUnlocking] = useState(false);
+  const [setupPromptDismissed, setSetupPromptDismissed] = useState(false);
   const biometricAttemptedRef = useRef(false);
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const backgroundedAtRef = useRef<number | null>(null);
@@ -118,10 +125,12 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     let cancelled = false;
 
     const load = async () => {
-      const [loadedSettings, detectedCapabilities] = await Promise.all([
-        loadSecuritySettings(),
-        detectSecurityCapabilities(),
-      ]);
+      const [loadedSettings, detectedCapabilities, promptDismissed] =
+        await Promise.all([
+          loadSecuritySettings(),
+          detectSecurityCapabilities(),
+          loadSecuritySetupPromptDismissed(),
+        ]);
 
       if (cancelled) {
         return;
@@ -129,6 +138,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
 
       setSettings(loadedSettings);
       setCapabilities(detectedCapabilities);
+      setSetupPromptDismissed(promptDismissed);
       setIsLocked(loadedSettings.hasPin);
       setStatus('ready');
     };
@@ -140,6 +150,7 @@ export function SecurityProvider({ children }: PropsWithChildren) {
 
       setSettings(createDefaultSecuritySettings());
       setCapabilities(defaultCapabilities);
+      setSetupPromptDismissed(false);
       setIsLocked(false);
       setStatus('ready');
     });
@@ -196,6 +207,11 @@ export function SecurityProvider({ children }: PropsWithChildren) {
 
     setSettings(nextSettings);
   };
+
+  const dismissSecuritySetupPrompt = useCallback(async () => {
+    await saveSecuritySetupPromptDismissed(true);
+    setSetupPromptDismissed(true);
+  }, []);
 
   const unlockWithPin = useCallback(async (pin: string) => {
     if (!validatePin(pin)) {
@@ -288,6 +304,8 @@ export function SecurityProvider({ children }: PropsWithChildren) {
       };
 
       await persistSettings(nextSettings);
+      await saveSecuritySetupPromptDismissed(false);
+      setSetupPromptDismissed(false);
       backgroundedAtRef.current = null;
       biometricAttemptedRef.current = false;
       setIsLocked(false);
@@ -345,6 +363,60 @@ export function SecurityProvider({ children }: PropsWithChildren) {
     [capabilities.biometricAvailable, settings],
   );
 
+  const disableBiometricsWithPin = useCallback(
+    async (pin: string) => {
+      const storedPin = await getStoredPin();
+
+      if (!storedPin || storedPin !== pin) {
+        return false;
+      }
+
+      const nextSettings: SecuritySettings = {
+        ...settings,
+        biometricEnabled: false,
+      };
+
+      await persistSettings(nextSettings);
+      return true;
+    },
+    [settings],
+  );
+
+  const disableBiometricsWithBiometrics = useCallback(async () => {
+    if (
+      !settings.hasPin ||
+      !settings.biometricEnabled ||
+      !capabilities.biometricAvailable ||
+      isUnlocking
+    ) {
+      return false;
+    }
+
+    setIsUnlocking(true);
+
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Potwierdź wyłączenie biometrii',
+      });
+
+      if (!result.success) {
+        return false;
+      }
+
+      const nextSettings: SecuritySettings = {
+        ...settings,
+        biometricEnabled: false,
+      };
+
+      await persistSettings(nextSettings);
+      return true;
+    } finally {
+      setIsUnlocking(false);
+    }
+  }, [capabilities.biometricAvailable, isUnlocking, settings]);
+
+  const shouldPromptSecuritySetup = !settings.hasPin && !setupPromptDismissed;
+
   if (status === 'loading') {
     return (
       <View style={styles.stateScreen}>
@@ -364,12 +436,16 @@ export function SecurityProvider({ children }: PropsWithChildren) {
         capabilities,
         isLocked,
         isUnlocking,
+        shouldPromptSecuritySetup,
         enablePin,
         changePin,
         disableSecurity,
         unlockWithPin,
         unlockWithBiometrics,
         setBiometricEnabled,
+        disableBiometricsWithPin,
+        disableBiometricsWithBiometrics,
+        dismissSecuritySetupPrompt,
       }}
     >
       <View style={styles.container}>

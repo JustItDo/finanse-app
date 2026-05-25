@@ -12,12 +12,13 @@ import {
 import type { RootTabParamList } from '@/src/navigation/AppNavigator';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
 import { colors, radius, spacing, typography } from '@/src/shared/theme';
-import { AppButton, AppCard } from '@/src/shared/ui';
+import { AppButton, AppCard, useScreenContentInsets } from '@/src/shared/ui';
 import { getCurrentMonthKey, shiftMonthKey } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
 export function DashboardScreen() {
   const { repositories, status, error } = useAppServices();
+  const { contentBottomPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey());
@@ -78,7 +79,14 @@ export function DashboardScreen() {
     dashboard.monthlyRemainingMinor < 0;
 
   return (
-    <ScrollView contentContainerStyle={styles.content} style={styles.screen}>
+    <ScrollView
+      contentContainerStyle={[
+        styles.content,
+        { paddingBottom: contentBottomPadding },
+      ]}
+      showsVerticalScrollIndicator={false}
+      style={styles.screen}
+    >
       <View style={styles.hero}>
         <View style={styles.heroHeader}>
           <View style={styles.heroCopy}>
@@ -128,7 +136,7 @@ export function DashboardScreen() {
       ) : null}
 
       <AppCard>
-        <Text style={styles.sectionTitle}>Sytuacja miesiąca</Text>
+        <Text style={styles.sectionTitle}>Ten miesiąc</Text>
         <View style={styles.metricsGrid}>
           <MetricCard
             label="Przychody"
@@ -167,20 +175,21 @@ export function DashboardScreen() {
             }
           />
         </View>
-        <Text style={styles.helperText}>
-          {dashboard.monthlyBudgetMinor === null
-            ? 'Budżet miesiąca nie jest jeszcze ustawiony. Kontrola planu opiera się teraz na limitach kategorii.'
-            : `Budżet miesiąca: ${formatMinorUnits(dashboard.monthlyBudgetMinor, dashboard.currencyCode)}`}
-        </Text>
+        {dashboard.monthlyBudgetMinor !== null ? (
+          <Text style={styles.helperText}>
+            Budżet miesiąca:{' '}
+            {formatMinorUnits(
+              dashboard.monthlyBudgetMinor,
+              dashboard.currencyCode,
+            )}
+          </Text>
+        ) : null}
       </AppCard>
 
       <AppCard>
-        <Text style={styles.sectionTitle}>Cel oszczędności</Text>
+        <Text style={styles.sectionTitle}>Cel oszczędnościowy</Text>
         {dashboard.savingsProgress.goalMinor === null ? (
-          <Text style={styles.helperText}>
-            Miesięczny cel oszczędności nie jest jeszcze ustawiony. Dodasz go w
-            zakładce Budżety razem z planem miesiąca.
-          </Text>
+          <Text style={styles.helperText}>Nie ustawiono jeszcze celu.</Text>
         ) : (
           <>
             <View style={styles.metricsGrid}>
@@ -257,8 +266,7 @@ export function DashboardScreen() {
             </View>
 
             <Text style={styles.helperText}>
-              Cel oszczędności liczymy prosto jako `przychody - wydatki` dla
-              tego miesiąca.
+              Liczone jako `przychody - wydatki`.
             </Text>
           </>
         )}
@@ -268,9 +276,7 @@ export function DashboardScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Pusty start</Text>
           <Text style={styles.helperText}>
-            Ten miesiąc nie ma jeszcze transakcji ani ustawionych limitów.
-            Zacznij od budżetu albo dodaj pierwszy wydatek, żeby dashboard
-            zaczął pokazywać realny obraz miesiąca.
+            Brak jeszcze danych dla tego miesiąca.
           </Text>
         </AppCard>
       ) : null}
@@ -279,20 +285,7 @@ export function DashboardScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Budżet gotowy, brak wydatków</Text>
           <Text style={styles.helperText}>
-            Masz już ustawione limity, ale w tym miesiącu nie zapisano jeszcze
-            transakcji. Po pierwszym wydatku zobaczysz od razu wpływ na plan
-            kategorii i miesiąca.
-          </Text>
-        </AppCard>
-      ) : null}
-
-      {!dashboard.hasConfiguredBudgets ? (
-        <AppCard>
-          <Text style={styles.sectionTitle}>Brak guardrailów budżetowych</Text>
-          <Text style={styles.helperText}>
-            Dashboard pokaże bilans i wydatki bez budżetu, ale pytanie „ile
-            zostało” będzie dużo mocniejsze po ustawieniu budżetu miesiąca albo
-            limitów kategorii w zakładce Budżety.
+            Limity są ustawione. Czekają na pierwsze transakcje.
           </Text>
         </AppCard>
       ) : null}
@@ -321,15 +314,13 @@ export function DashboardScreen() {
           Najważniejsze kategorie budżetowe
         </Text>
         <Text style={styles.helperText}>
-          Najpierw pokazujemy przekroczenia i kategorie blisko limitu, żeby dało
-          się zeskanować problem bez przechodzenia do pełnych budżetów.
+          Najpierw pokazujemy te najważniejsze.
         </Text>
 
         {dashboard.highlightCategories.length === 0 ? (
           <View style={styles.emptyCategoryState}>
             <Text style={styles.helperText}>
-              Brak skonfigurowanych limitów kategorii dla tego miesiąca. Po ich
-              dodaniu zobaczysz tu najważniejsze obszary budżetu.
+              Brak limitów kategorii dla tego miesiąca.
             </Text>
           </View>
         ) : (

@@ -283,6 +283,65 @@ export async function createStorageServices() {
           return readStore().categories.length;
         },
 
+        async createCategory(input: {
+          name: string;
+          transactionType: TransactionType;
+          color?: string | null;
+          icon?: string | null;
+        }) {
+          const store = readStore();
+          const now = toIsoTimestamp();
+          const sortOrder =
+            store.categories.reduce(
+              (max, category) => Math.max(max, category.sortOrder),
+              0,
+            ) + 10;
+
+          const category: Category = {
+            color: input.color ?? null,
+            createdAt: now,
+            icon: input.icon ?? null,
+            id: createEntityId('category'),
+            isArchived: false,
+            isSystem: false,
+            name: input.name.trim(),
+            sortOrder,
+            transactionType: input.transactionType,
+            updatedAt: now,
+          };
+
+          store.categories.push(category);
+          writeStore(store);
+
+          return category;
+        },
+
+        async deleteCategory(id: string) {
+          const store = readStore();
+          const categoryIndex = store.categories.findIndex(
+            (item) => item.id === id,
+          );
+
+          if (categoryIndex === -1) {
+            throw new Error('Nie znaleziono kategorii do usunięcia.');
+          }
+
+          store.categories.splice(categoryIndex, 1);
+          store.categoryBudgets = store.categoryBudgets.filter(
+            (budget) => budget.categoryId !== id,
+          );
+          store.transactions = store.transactions.map((transaction) =>
+            transaction.categoryId === id
+              ? {
+                  ...transaction,
+                  categoryId: null,
+                  updatedAt: toIsoTimestamp(),
+                }
+              : transaction,
+          );
+          writeStore(store);
+        },
+
         async listAll() {
           return readStore()
             .categories.slice()
@@ -309,6 +368,7 @@ export async function createStorageServices() {
           id: string;
           name: string;
           isArchived: boolean;
+          icon?: string | null;
         }) {
           const store = readStore();
           const category = store.categories.find(
@@ -321,6 +381,7 @@ export async function createStorageServices() {
 
           category.name = input.name.trim();
           category.isArchived = input.isArchived;
+          category.icon = input.icon ?? null;
           category.updatedAt = toIsoTimestamp();
           writeStore(store);
 

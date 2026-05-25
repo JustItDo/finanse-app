@@ -1,5 +1,6 @@
 import {
   getEntrySourceMeta,
+  type Attachment,
   type Category,
   type PaymentMethod,
   type TransactionType,
@@ -20,6 +21,8 @@ export type HistoryFilterValues = {
   searchText: string;
 };
 
+const ALL_MONTHS_VALUE = '';
+
 type HistorySourceMeta = ReturnType<typeof getEntrySourceMeta>;
 
 type BaseHistoryTransaction = {
@@ -34,7 +37,9 @@ export type HistoryTransactionItem = Awaited<
 export type HistoryTransactionDetail = NonNullable<
   Awaited<ReturnType<AppRepositories['transactions']['getById']>>
 > &
-  BaseHistoryTransaction;
+  BaseHistoryTransaction & {
+    attachments: Attachment[];
+  };
 
 export type HistoryMonthOption = {
   value: string;
@@ -85,7 +90,8 @@ export async function loadHistoryScreenState(
   const fallbackMonthKey = months[0] ?? getCurrentMonthKey();
   const resolvedFilters: HistoryFilterValues = {
     categoryId: filters.categoryId ?? '',
-    monthKey: filters.monthKey ?? fallbackMonthKey,
+    monthKey:
+      filters.monthKey !== undefined ? filters.monthKey : fallbackMonthKey,
     searchText: filters.searchText ?? '',
     type: filters.type ?? 'all',
   };
@@ -113,7 +119,7 @@ export async function loadHistoryScreenState(
 
   const transactions = await repositories.transactions.listHistory({
     categoryId: effectiveCategoryId || null,
-    monthKey: resolvedFilters.monthKey,
+    monthKey: resolvedFilters.monthKey || null,
     searchText: resolvedFilters.searchText,
     type: resolvedFilters.type,
   });
@@ -136,13 +142,19 @@ export async function loadHistoryDetail(
   repositories: AppRepositories,
   transactionId: string,
 ): Promise<HistoryTransactionDetail> {
-  const transaction = await repositories.transactions.getById(transactionId);
+  const [transaction, attachments] = await Promise.all([
+    repositories.transactions.getById(transactionId),
+    repositories.attachments.listByTransactionId(transactionId),
+  ]);
 
   if (!transaction) {
     throw new Error('Nie znaleziono wybranej transakcji.');
   }
 
-  return attachSourceMeta(transaction);
+  return {
+    ...attachSourceMeta(transaction),
+    attachments,
+  };
 }
 
 export async function loadHistoryEditContext(
@@ -275,10 +287,13 @@ function buildMonthOptions(
 ): HistoryMonthOption[] {
   const values = months.length > 0 ? months : [fallbackMonthKey];
 
-  return values.map((monthKey) => ({
-    label: formatMonthKeyLabel(monthKey),
-    value: monthKey,
-  }));
+  return [
+    { label: 'Wszystkie miesiące', value: ALL_MONTHS_VALUE },
+    ...values.map((monthKey) => ({
+      label: formatMonthKeyLabel(monthKey),
+      value: monthKey,
+    })),
+  ];
 }
 
 function formatMinorToInput(amountMinor: number) {
