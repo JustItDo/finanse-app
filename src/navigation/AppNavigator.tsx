@@ -73,6 +73,7 @@ export function AppNavigator() {
         <Tab.Navigator
           initialRouteName="Dashboard"
           screenOptions={({ route }) => ({
+            headerShown: false,
             headerStyle: {
               backgroundColor: colors.surface,
             },
