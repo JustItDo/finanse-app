@@ -21,7 +21,7 @@ const RANGE_OPTIONS: { label: string; value: AnalysisTimeRange }[] = [
 
 export function AnalysisScreen() {
   const { repositories, status, error } = useAppServices();
-  const { contentBottomPadding } = useScreenContentInsets();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const isFocused = useIsFocused();
   const [range, setRange] = useState<AnalysisTimeRange>('current_month');
   const [analysis, setAnalysis] = useState<AnalysisState | null>(null);
@@ -72,7 +72,7 @@ export function AnalysisScreen() {
     <ScrollView
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: contentBottomPadding },
+        { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
       ]}
       showsVerticalScrollIndicator={false}
       style={styles.screen}

@@ -35,7 +35,7 @@ function getProtectionSummary(hasPin: boolean, biometricEnabled: boolean) {
 }
 
 export function SettingsScreen() {
-  const { contentBottomPadding } = useScreenContentInsets();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollToKeyboardTarget = (target: number, topOffset: number) => {
     scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard?.(
@@ -237,7 +237,7 @@ export function SettingsScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: contentBottomPadding },
+          { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}

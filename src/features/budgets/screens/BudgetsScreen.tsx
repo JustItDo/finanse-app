@@ -136,7 +136,7 @@ function flattenCategoryItems(setup: BudgetSetupState) {
 
 export function BudgetsScreen() {
   const { repositories, status } = useAppServices();
-  const { contentBottomPadding } = useScreenContentInsets();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const monthKey = getCurrentMonthKey();
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollToKeyboardTarget = (target: number, topOffset: number) => {
@@ -454,7 +454,7 @@ export function BudgetsScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: contentBottomPadding },
+          { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}

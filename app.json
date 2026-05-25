@@ -54,11 +54,11 @@
         }
       ]
     ],
+    "owner": "justitdo",
     "extra": {
       "eas": {
-        "projectId": "869f10a2-5618-4a50-9453-572d503268e7"
+        "projectId": "c06c83c8-0e8c-49b3-9d07-548aee6cff34"
       }
-    },
-    "owner": "justitdo"
+    }
   }
 }

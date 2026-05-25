@@ -9,6 +9,7 @@ export function useScreenContentInsets(minBottomPadding = spacing.xxl) {
 
   return {
     contentBottomPadding: Math.max(minBottomPadding, tabBarHeight + spacing.lg),
+    contentTopPadding: Math.max(insets.top + spacing.sm, spacing.xl),
     insets,
     tabBarHeight,
   };

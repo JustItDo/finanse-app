@@ -18,7 +18,7 @@ import { formatMinorUnits } from '@/src/shared/utils/money';
 
 export function DashboardScreen() {
   const { repositories, status, error } = useAppServices();
-  const { contentBottomPadding } = useScreenContentInsets();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
   const [monthKey, setMonthKey] = useState(getCurrentMonthKey());
@@ -82,7 +82,7 @@ export function DashboardScreen() {
     <ScrollView
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: contentBottomPadding },
+        { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
       ]}
       showsVerticalScrollIndicator={false}
       style={styles.screen}

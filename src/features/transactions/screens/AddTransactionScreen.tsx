@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useIsFocused } from '@react-navigation/native';
 
 import type { TransactionType } from '@/src/domain/finance';
 import {
@@ -65,7 +66,8 @@ type EntryMode = 'manual' | 'ocr';
 
 export function AddTransactionScreen() {
   const { repositories, status } = useAppServices();
-  const { contentBottomPadding } = useScreenContentInsets();
+  const isFocused = useIsFocused();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollToKeyboardTarget = (target: number, topOffset: number) => {
     scrollRef.current?.scrollResponderScrollNativeHandleToKeyboard?.(
@@ -99,7 +101,7 @@ export function AddTransactionScreen() {
   const [showRawOcrText, setShowRawOcrText] = useState(false);
 
   useEffect(() => {
-    if (status !== 'ready') {
+    if (status !== 'ready' || !isFocused) {
       return;
     }
 
@@ -112,7 +114,27 @@ export function AddTransactionScreen() {
         }
 
         setContext(result);
-        setForm(result.defaultValues);
+        setForm((current) => {
+          if (!current) {
+            return result.defaultValues;
+          }
+
+          const nextType = current.type;
+          const availableCategories = result.categoriesByType[nextType];
+          const hasCurrentCategory = availableCategories.some(
+            (category) => category.id === current.categoryId,
+          );
+
+          return {
+            ...current,
+            categoryId: hasCurrentCategory ? current.categoryId : '',
+            paymentMethod:
+              current.paymentMethod ||
+              result.defaultPaymentMethodByType[nextType],
+            type: nextType,
+          };
+        });
+        setSubmitError(null);
       })
       .catch((error: unknown) => {
         if (!cancelled) {
@@ -127,7 +149,7 @@ export function AddTransactionScreen() {
     return () => {
       cancelled = true;
     };
-  }, [repositories, status]);
+  }, [isFocused, repositories, status]);
 
   useEffect(() => {
     if (!impact) {
@@ -301,7 +323,7 @@ export function AddTransactionScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: contentBottomPadding },
+          { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -312,8 +334,8 @@ export function AddTransactionScreen() {
         <View style={styles.hero}>
           <Text style={styles.title}>Dodaj transakcję</Text>
           <Text style={styles.description}>
-            Szybki wpis ręczny jest domyślny. OCR uruchamiasz tylko wtedy, gdy
-            dodajesz z obrazu.
+            Możesz wpisać wszystko ręcznie albo dodać paragon czy screen
+            płatności ze zdjęcia.
           </Text>
         </View>
 
@@ -324,29 +346,31 @@ export function AddTransactionScreen() {
         ) : null}
 
         <AppCard>
-          <Text style={styles.sectionTitle}>Tryb dodawania</Text>
-          <View style={styles.chipGroup}>
-            <Chip
+          <Text style={styles.sectionTitle}>Jak chcesz dodać transakcję?</Text>
+          <View style={styles.modeChoiceRow}>
+            <ModeOptionCard
               active={entryMode === 'manual'}
-              label="Szybki wpis ręczny"
+              description="Kwota, kategoria i zapis."
+              label="Wpisz ręcznie"
               onPress={() => setEntryMode('manual')}
             />
-            <Chip
+            <ModeOptionCard
               active={entryMode === 'ocr'}
-              label="OCR z obrazu"
+              description="Paragon albo screen płatności."
+              label="Dodaj z obrazu"
               onPress={() => setEntryMode('ocr')}
             />
           </View>
           <Text style={styles.helperText}>
             {entryMode === 'manual'
-              ? 'Najpierw szybki wpis. OCR jest obok, gdy naprawdę go potrzebujesz.'
-              : 'Po imporcie od razu poprawiasz pola i zapisujesz transakcję.'}
+              ? 'To najszybsza ścieżka do codziennego wpisu.'
+              : 'Aplikacja odczyta dane ze zdjęcia, a Ty tylko je sprawdzisz i zapiszesz.'}
           </Text>
         </AppCard>
 
         {entryMode === 'ocr' ? (
           <AppCard>
-            <Text style={styles.sectionTitle}>Import z obrazu</Text>
+            <Text style={styles.sectionTitle}>Dodaj z obrazu</Text>
             <View style={styles.importActions}>
               <AppButton
                 disabled={isImporting !== null}
@@ -383,15 +407,15 @@ export function AddTransactionScreen() {
               />
             </View>
             <Text style={styles.footnoteText}>
-              OCR działa w buildzie natywnym. Na webie zostaje ręczne
-              uzupełnienie formularza.
+              Automatyczne odczytanie działa w buildzie natywnym. Na webie
+              zostaje ręczne uzupełnienie formularza.
             </Text>
           </AppCard>
         ) : null}
 
         {ocrResult && ocrCorrectionDraft ? (
           <AppCard>
-            <Text style={styles.sectionTitle}>Korekta OCR</Text>
+            <Text style={styles.sectionTitle}>Sprawdź dane ze zdjęcia</Text>
             <Image
               source={{ uri: ocrResult.attachment.fileUri }}
               style={styles.previewImage}
@@ -799,6 +823,45 @@ function Chip({
   );
 }
 
+function ModeOptionCard({
+  label,
+  description,
+  active,
+  onPress,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.modeOptionCard,
+        active ? styles.modeOptionCardActive : styles.modeOptionCardInactive,
+      ]}
+    >
+      <Text
+        style={[
+          styles.modeOptionTitle,
+          active ? styles.modeOptionTitleActive : null,
+        ]}
+      >
+        {label}
+      </Text>
+      <Text
+        style={[
+          styles.modeOptionDescription,
+          active ? styles.modeOptionDescriptionActive : null,
+        ]}
+      >
+        {description}
+      </Text>
+    </Pressable>
+  );
+}
+
 function FieldLabel({
   label,
   required = false,
@@ -978,6 +1041,39 @@ const styles = StyleSheet.create({
   loadingText: {
     color: colors.textMuted,
     textAlign: 'center',
+  },
+  modeChoiceRow: {
+    gap: spacing.sm,
+  },
+  modeOptionCard: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    gap: spacing.xs,
+    padding: spacing.md,
+  },
+  modeOptionCardActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  modeOptionCardInactive: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+  },
+  modeOptionDescription: {
+    color: colors.textMuted,
+    fontSize: typography.caption,
+    lineHeight: 18,
+  },
+  modeOptionDescriptionActive: {
+    color: colors.surfaceMuted,
+  },
+  modeOptionTitle: {
+    color: colors.text,
+    fontSize: typography.body,
+    fontWeight: '700',
+  },
+  modeOptionTitleActive: {
+    color: colors.surface,
   },
   previewImage: {
     borderRadius: radius.md,

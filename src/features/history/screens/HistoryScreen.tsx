@@ -75,7 +75,7 @@ function formatHistoryMonthSummary(monthKey: string) {
 
 export function HistoryScreen() {
   const { repositories, status, error } = useAppServices();
-  const { contentBottomPadding } = useScreenContentInsets();
+  const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
   const listRef = useRef<FlatList<HistoryTransactionItem> | null>(null);
@@ -500,7 +500,7 @@ export function HistoryScreen() {
       automaticallyAdjustKeyboardInsets
       contentContainerStyle={[
         styles.content,
-        { paddingBottom: contentBottomPadding },
+        { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
       ]}
       contentInsetAdjustmentBehavior="automatic"
       data={historyState.transactions}
