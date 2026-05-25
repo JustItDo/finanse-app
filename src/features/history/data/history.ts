@@ -1,6 +1,16 @@
-import { getEntrySourceMeta, type Category, type PaymentMethod, type TransactionType } from '@/src/domain/finance';
+import {
+  getEntrySourceMeta,
+  type Category,
+  type PaymentMethod,
+  type TransactionType,
+} from '@/src/domain/finance';
 import type { AppRepositories } from '@/src/storage';
-import { formatMonthKeyLabel, getCurrentMonthKey, getMonthKeyFromDateInput, isValidDateInput } from '@/src/shared/utils/date';
+import {
+  formatMonthKeyLabel,
+  getCurrentMonthKey,
+  getMonthKeyFromDateInput,
+  isValidDateInput,
+} from '@/src/shared/utils/date';
 import { parseMoneyToMinorUnits } from '@/src/shared/utils/money';
 
 export type HistoryFilterValues = {
@@ -66,10 +76,10 @@ export async function loadHistoryScreenState(
   repositories: AppRepositories,
   filters: Partial<HistoryFilterValues>,
 ): Promise<HistoryScreenState> {
-  const [months, categories, allTransactions] = await Promise.all([
+  const [months, categories, totalTransactionsCount] = await Promise.all([
     repositories.transactions.listMonthsWithTransactions(),
     repositories.categories.listAll(),
-    repositories.transactions.listHistory(),
+    repositories.transactions.count(),
   ]);
 
   const fallbackMonthKey = months[0] ?? getCurrentMonthKey();
@@ -89,10 +99,15 @@ export async function loadHistoryScreenState(
       return true;
     }
 
-    return category.transactionType === resolvedFilters.type || category.transactionType === 'both';
+    return (
+      category.transactionType === resolvedFilters.type ||
+      category.transactionType === 'both'
+    );
   });
 
-  const effectiveCategoryId = categoryOptions.some((category) => category.id === resolvedFilters.categoryId)
+  const effectiveCategoryId = categoryOptions.some(
+    (category) => category.id === resolvedFilters.categoryId,
+  )
     ? resolvedFilters.categoryId
     : '';
 
@@ -109,8 +124,8 @@ export async function loadHistoryScreenState(
       ...resolvedFilters,
       categoryId: effectiveCategoryId,
     },
-    isCompletelyEmpty: allTransactions.length === 0,
-    isFilteredEmpty: allTransactions.length > 0 && transactions.length === 0,
+    isCompletelyEmpty: totalTransactionsCount === 0,
+    isFilteredEmpty: totalTransactionsCount > 0 && transactions.length === 0,
     monthOptions: buildMonthOptions(months, fallbackMonthKey),
     totalCount: transactions.length,
     transactions: transactions.map(attachSourceMeta),
@@ -171,10 +186,14 @@ export function validateEditableTransaction(
 
   if (!values.categoryId) {
     errors.categoryId =
-      values.type === 'income' ? 'Wybierz kategorię przychodu.' : 'Wybierz kategorię wydatku.';
+      values.type === 'income'
+        ? 'Wybierz kategorię przychodu.'
+        : 'Wybierz kategorię wydatku.';
   } else {
     const availableCategories = categoriesByType[values.type];
-    const exists = availableCategories.some((category) => category.id === values.categoryId);
+    const exists = availableCategories.some(
+      (category) => category.id === values.categoryId,
+    );
 
     if (!exists) {
       errors.categoryId = 'Wybierz kategorię zgodną z typem transakcji.';
@@ -197,10 +216,18 @@ export async function updateTransactionFromHistory(
   values: EditableTransactionValues,
   context: HistoryEditContext,
 ) {
-  const validation = validateEditableTransaction(values, context.categoriesByType);
+  const validation = validateEditableTransaction(
+    values,
+    context.categoriesByType,
+  );
 
-  if (validation.amountMinor === null || Object.keys(validation.errors).length > 0) {
-    throw new Error('Nie można zapisać zmian bez poprawnych danych formularza.');
+  if (
+    validation.amountMinor === null ||
+    Object.keys(validation.errors).length > 0
+  ) {
+    throw new Error(
+      'Nie można zapisać zmian bez poprawnych danych formularza.',
+    );
   }
 
   await repositories.transactions.update({
@@ -235,14 +262,17 @@ export function buildNextHistoryFilters(
   const typeChanged = patch.type !== undefined && patch.type !== current.type;
 
   return {
-    categoryId: typeChanged ? '' : patch.categoryId ?? current.categoryId,
+    categoryId: typeChanged ? '' : (patch.categoryId ?? current.categoryId),
     monthKey: patch.monthKey ?? current.monthKey,
     searchText: patch.searchText ?? current.searchText,
     type: nextType,
   };
 }
 
-function buildMonthOptions(months: string[], fallbackMonthKey: string): HistoryMonthOption[] {
+function buildMonthOptions(
+  months: string[],
+  fallbackMonthKey: string,
+): HistoryMonthOption[] {
   const values = months.length > 0 ? months : [fallbackMonthKey];
 
   return values.map((monthKey) => ({
@@ -255,7 +285,9 @@ function formatMinorToInput(amountMinor: number) {
   return (amountMinor / 100).toFixed(2).replace('.', ',');
 }
 
-function attachSourceMeta<T extends { sourceType: Parameters<typeof getEntrySourceMeta>[0] }>(transaction: T) {
+function attachSourceMeta<
+  T extends { sourceType: Parameters<typeof getEntrySourceMeta>[0] },
+>(transaction: T) {
   return {
     ...transaction,
     sourceMeta: getEntrySourceMeta(transaction.sourceType),

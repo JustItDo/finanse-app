@@ -1,6 +1,7 @@
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { SecurityProvider } from '@/src/features/security/providers/SecurityProvider';
 import { AppNavigator } from '@/src/navigation/AppNavigator';
 import { AppServicesProvider } from '@/src/providers/AppServicesProvider';
 
@@ -9,7 +10,9 @@ export default function App() {
     <SafeAreaProvider>
       <StatusBar style="dark" />
       <AppServicesProvider>
-        <AppNavigator />
+        <SecurityProvider>
+          <AppNavigator />
+        </SecurityProvider>
       </AppServicesProvider>
     </SafeAreaProvider>
   );

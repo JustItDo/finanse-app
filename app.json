@@ -25,6 +25,13 @@
     "plugins": [
       "expo-sqlite",
       "expo-font",
+      "expo-secure-store",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Aplikacja potrzebuje Face ID, żeby szybko odblokować dostęp do finansów."
+        }
+      ],
       [
         "expo-image-picker",
         {

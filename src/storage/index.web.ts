@@ -1,8 +1,18 @@
-import type { Attachment, Category, CategoryBudget, MonthlyBudget, Transaction, TransactionType } from '@/src/domain/finance';
+import type {
+  Attachment,
+  Category,
+  CategoryBudget,
+  MonthlyBudget,
+  Transaction,
+  TransactionType,
+} from '@/src/domain/finance';
 import { obsidianIntegrationConfig } from '@/src/shared/config/obsidian';
 import { getCurrentMonthKey, toIsoTimestamp } from '@/src/shared/utils/date';
 import { createEntityId } from '@/src/shared/utils/id';
-import { DEFAULT_CURRENCY_CODE, DATABASE_SCHEMA_VERSION } from '@/src/storage/sqlite/constants';
+import {
+  DEFAULT_CURRENCY_CODE,
+  DATABASE_SCHEMA_VERSION,
+} from '@/src/storage/sqlite/constants';
 import type {
   TransactionHistoryFilters,
   UpdateTransactionInput,
@@ -47,7 +57,11 @@ function createSeededStore(): WebStore {
 }
 
 function canUseLocalStorage() {
-  return typeof globalThis !== 'undefined' && 'localStorage' in globalThis && globalThis.localStorage !== null;
+  return (
+    typeof globalThis !== 'undefined' &&
+    'localStorage' in globalThis &&
+    globalThis.localStorage !== null
+  );
 }
 
 function readStore(): WebStore {
@@ -124,12 +138,16 @@ export async function createStorageServices() {
         },
 
         async listByTransactionId(transactionId: string) {
-          return readStore().attachments.filter((attachment) => attachment.transactionId === transactionId);
+          return readStore().attachments.filter(
+            (attachment) => attachment.transactionId === transactionId,
+          );
         },
 
         async linkToTransaction(attachmentId: string, transactionId: string) {
           const store = readStore();
-          const attachment = store.attachments.find((item) => item.id === attachmentId);
+          const attachment = store.attachments.find(
+            (item) => item.id === attachmentId,
+          );
 
           if (!attachment) {
             throw new Error('Nie znaleziono załącznika do powiązania.');
@@ -146,22 +164,33 @@ export async function createStorageServices() {
       budgets: {
         async clearMonthlyBudget(monthKey: string) {
           const store = readStore();
-          store.monthlyBudgets = store.monthlyBudgets.filter((budget) => budget.monthKey !== monthKey);
+          store.monthlyBudgets = store.monthlyBudgets.filter(
+            (budget) => budget.monthKey !== monthKey,
+          );
           writeStore(store);
         },
 
         async getMonthlyBudget(monthKey: string) {
-          return readStore().monthlyBudgets.find((budget) => budget.monthKey === monthKey) ?? null;
+          return (
+            readStore().monthlyBudgets.find(
+              (budget) => budget.monthKey === monthKey,
+            ) ?? null
+          );
         },
 
         async listCategoryBudgets(monthKey: string) {
-          return readStore().categoryBudgets.filter((budget) => budget.monthKey === monthKey);
+          return readStore().categoryBudgets.filter(
+            (budget) => budget.monthKey === monthKey,
+          );
         },
 
         async removeCategoryBudget(categoryId: string, monthKey: string) {
           const store = readStore();
           store.categoryBudgets = store.categoryBudgets.filter(
-            (budget) => !(budget.categoryId === categoryId && budget.monthKey === monthKey),
+            (budget) =>
+              !(
+                budget.categoryId === categoryId && budget.monthKey === monthKey
+              ),
           );
           writeStore(store);
         },
@@ -175,7 +204,9 @@ export async function createStorageServices() {
         }) {
           const store = readStore();
           const existing = store.categoryBudgets.find(
-            (budget) => budget.categoryId === input.categoryId && budget.monthKey === input.monthKey,
+            (budget) =>
+              budget.categoryId === input.categoryId &&
+              budget.monthKey === input.monthKey,
           );
           const now = toIsoTimestamp();
 
@@ -213,7 +244,9 @@ export async function createStorageServices() {
           notes?: string | null;
         }) {
           const store = readStore();
-          const existing = store.monthlyBudgets.find((budget) => budget.monthKey === input.monthKey);
+          const existing = store.monthlyBudgets.find(
+            (budget) => budget.monthKey === input.monthKey,
+          );
           const now = toIsoTimestamp();
 
           if (existing) {
@@ -251,24 +284,36 @@ export async function createStorageServices() {
         },
 
         async listAll() {
-          return readStore().categories.slice().sort((left, right) => left.sortOrder - right.sortOrder);
+          return readStore()
+            .categories.slice()
+            .sort((left, right) => left.sortOrder - right.sortOrder);
         },
 
         async listByTransactionType(type: TransactionType | 'all' = 'all') {
-          const categories = readStore().categories.filter((category) => !category.isArchived);
+          const categories = readStore().categories.filter(
+            (category) => !category.isArchived,
+          );
 
           if (type === 'all') {
             return categories;
           }
 
           return categories.filter(
-            (category) => category.transactionType === type || category.transactionType === 'both',
+            (category) =>
+              category.transactionType === type ||
+              category.transactionType === 'both',
           );
         },
 
-        async updateCategory(input: { id: string; name: string; isArchived: boolean }) {
+        async updateCategory(input: {
+          id: string;
+          name: string;
+          isArchived: boolean;
+        }) {
           const store = readStore();
-          const category = store.categories.find((item) => item.id === input.id);
+          const category = store.categories.find(
+            (item) => item.id === input.id,
+          );
 
           if (!category) {
             throw new Error('Nie znaleziono kategorii do aktualizacji.');
@@ -292,10 +337,13 @@ export async function createStorageServices() {
 
           return {
             categoriesCount: store.categories.length,
-            categoryBudgetsCount: store.categoryBudgets.filter((budget) => budget.monthKey === monthKey).length,
+            categoryBudgetsCount: store.categoryBudgets.filter(
+              (budget) => budget.monthKey === monthKey,
+            ).length,
             currencyCode:
-              store.monthlyBudgets.find((budget) => budget.monthKey === monthKey)?.currencyCode ??
-              DEFAULT_CURRENCY_CODE,
+              store.monthlyBudgets.find(
+                (budget) => budget.monthKey === monthKey,
+              )?.currencyCode ?? DEFAULT_CURRENCY_CODE,
             expenseTotalMinor: monthTransactions
               .filter((transaction) => transaction.type === 'expense')
               .reduce((sum, transaction) => sum + transaction.amountMinor, 0),
@@ -304,8 +352,11 @@ export async function createStorageServices() {
               .reduce((sum, transaction) => sum + transaction.amountMinor, 0),
             monthKey,
             monthlyBudgetMinor:
-              store.monthlyBudgets.find((budget) => budget.monthKey === monthKey)?.totalBudgetMinor ?? 0,
-            obsidianVaultRelativePath: obsidianIntegrationConfig.relativeVaultPathFromApp,
+              store.monthlyBudgets.find(
+                (budget) => budget.monthKey === monthKey,
+              )?.totalBudgetMinor ?? 0,
+            obsidianVaultRelativePath:
+              obsidianIntegrationConfig.relativeVaultPathFromApp,
             recentTransactionsCount: store.transactions.length,
             schemaVersion: store.schemaVersion,
           };
@@ -371,7 +422,10 @@ export async function createStorageServices() {
           return {
             amountMinor: transaction.amountMinor,
             categoryId: transaction.categoryId,
-            categoryName: store.categories.find((category) => category.id === transaction.categoryId)?.name ?? null,
+            categoryName:
+              store.categories.find(
+                (category) => category.id === transaction.categoryId,
+              )?.name ?? null,
             createdAt: transaction.createdAt,
             currencyCode: transaction.currencyCode,
             description: transaction.description,
@@ -414,17 +468,24 @@ export async function createStorageServices() {
 
           readStore()
             .transactions.filter(
-              (transaction) => transaction.type === type && transaction.occurredAt.startsWith(monthKey),
+              (transaction) =>
+                transaction.type === type &&
+                transaction.occurredAt.startsWith(monthKey),
             )
             .forEach((transaction) => {
               const current = grouped.get(transaction.categoryId) ?? 0;
-              grouped.set(transaction.categoryId, current + transaction.amountMinor);
+              grouped.set(
+                transaction.categoryId,
+                current + transaction.amountMinor,
+              );
             });
 
-          return Array.from(grouped.entries()).map(([categoryId, totalMinor]) => ({
-            categoryId,
-            totalMinor,
-          }));
+          return Array.from(grouped.entries()).map(
+            ([categoryId, totalMinor]) => ({
+              categoryId,
+              totalMinor,
+            }),
+          );
         },
 
         async getDailyTotals(monthKey: string, type: TransactionType) {
@@ -432,7 +493,9 @@ export async function createStorageServices() {
 
           readStore()
             .transactions.filter(
-              (transaction) => transaction.type === type && transaction.occurredAt.startsWith(monthKey),
+              (transaction) =>
+                transaction.type === type &&
+                transaction.occurredAt.startsWith(monthKey),
             )
             .forEach((transaction) => {
               const occurredOn = transaction.occurredAt.slice(0, 10);
@@ -441,7 +504,9 @@ export async function createStorageServices() {
             });
 
           return Array.from(grouped.entries())
-            .sort(([leftDate], [rightDate]) => leftDate.localeCompare(rightDate))
+            .sort(([leftDate], [rightDate]) =>
+              leftDate.localeCompare(rightDate),
+            )
             .map(([occurredOn, totalMinor]) => ({
               occurredOn,
               totalMinor,
@@ -450,16 +515,22 @@ export async function createStorageServices() {
 
         async listRecent(limit = 20) {
           const store = readStore();
+          const categoryNames = new Map(
+            store.categories.map((category) => [category.id, category.name]),
+          );
 
           return store.transactions
             .slice()
-            .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+            .sort((left, right) =>
+              right.occurredAt.localeCompare(left.occurredAt),
+            )
             .slice(0, limit)
             .map((transaction) => ({
               amountMinor: transaction.amountMinor,
               categoryId: transaction.categoryId,
-              categoryName:
-                store.categories.find((category) => category.id === transaction.categoryId)?.name ?? null,
+              categoryName: transaction.categoryId
+                ? (categoryNames.get(transaction.categoryId) ?? null)
+                : null,
               currencyCode: transaction.currencyCode,
               description: transaction.description,
               id: transaction.id,
@@ -472,19 +543,33 @@ export async function createStorageServices() {
 
         async listHistory(filters: TransactionHistoryFilters = {}) {
           const store = readStore();
-          const normalizedSearch = filters.searchText?.trim().toLocaleLowerCase('pl-PL') ?? '';
+          const normalizedSearch =
+            filters.searchText?.trim().toLocaleLowerCase('pl-PL') ?? '';
+          const categoryNames = new Map(
+            store.categories.map((category) => [category.id, category.name]),
+          );
 
           return store.transactions
             .filter((transaction) => {
-              if (filters.monthKey && !transaction.occurredAt.startsWith(filters.monthKey)) {
+              if (
+                filters.monthKey &&
+                !transaction.occurredAt.startsWith(filters.monthKey)
+              ) {
                 return false;
               }
 
-              if (filters.type && filters.type !== 'all' && transaction.type !== filters.type) {
+              if (
+                filters.type &&
+                filters.type !== 'all' &&
+                transaction.type !== filters.type
+              ) {
                 return false;
               }
 
-              if (filters.categoryId && transaction.categoryId !== filters.categoryId) {
+              if (
+                filters.categoryId &&
+                transaction.categoryId !== filters.categoryId
+              ) {
                 return false;
               }
 
@@ -492,16 +577,23 @@ export async function createStorageServices() {
                 return true;
               }
 
-              const categoryName =
-                store.categories.find((category) => category.id === transaction.categoryId)?.name ?? '';
-              const haystack = [transaction.description ?? '', transaction.note ?? '', categoryName]
+              const categoryName = transaction.categoryId
+                ? (categoryNames.get(transaction.categoryId) ?? '')
+                : '';
+              const haystack = [
+                transaction.description ?? '',
+                transaction.note ?? '',
+                categoryName,
+              ]
                 .join(' ')
                 .toLocaleLowerCase('pl-PL');
 
               return haystack.includes(normalizedSearch);
             })
             .sort((left, right) => {
-              const occurredCompare = right.occurredAt.localeCompare(left.occurredAt);
+              const occurredCompare = right.occurredAt.localeCompare(
+                left.occurredAt,
+              );
 
               if (occurredCompare !== 0) {
                 return occurredCompare;
@@ -512,8 +604,9 @@ export async function createStorageServices() {
             .map((transaction) => ({
               amountMinor: transaction.amountMinor,
               categoryId: transaction.categoryId,
-              categoryName:
-                store.categories.find((category) => category.id === transaction.categoryId)?.name ?? null,
+              categoryName: transaction.categoryId
+                ? (categoryNames.get(transaction.categoryId) ?? null)
+                : null,
               currencyCode: transaction.currencyCode,
               description: transaction.description,
               id: transaction.id,
@@ -526,16 +619,26 @@ export async function createStorageServices() {
 
         async listMonthsWithTransactions() {
           return Array.from(
-            new Set(readStore().transactions.map((transaction) => transaction.occurredAt.slice(0, 7))),
+            new Set(
+              readStore().transactions.map((transaction) =>
+                transaction.occurredAt.slice(0, 7),
+              ),
+            ),
           ).sort((left, right) => right.localeCompare(left));
         },
 
         async remove(id: string) {
           const store = readStore();
-          store.transactions = store.transactions.filter((transaction) => transaction.id !== id);
+          store.transactions = store.transactions.filter(
+            (transaction) => transaction.id !== id,
+          );
           store.attachments = store.attachments.map((attachment) =>
             attachment.transactionId === id
-              ? { ...attachment, transactionId: null, updatedAt: toIsoTimestamp() }
+              ? {
+                  ...attachment,
+                  transactionId: null,
+                  updatedAt: toIsoTimestamp(),
+                }
               : attachment,
           );
           writeStore(store);
@@ -543,7 +646,9 @@ export async function createStorageServices() {
 
         async update(input: UpdateTransactionInput) {
           const store = readStore();
-          const transaction = store.transactions.find((item) => item.id === input.id);
+          const transaction = store.transactions.find(
+            (item) => item.id === input.id,
+          );
 
           if (!transaction) {
             throw new Error('Nie znaleziono transakcji do aktualizacji.');
@@ -551,7 +656,8 @@ export async function createStorageServices() {
 
           transaction.amountMinor = input.amountMinor;
           transaction.categoryId = input.categoryId ?? null;
-          transaction.currencyCode = input.currencyCode ?? DEFAULT_CURRENCY_CODE;
+          transaction.currencyCode =
+            input.currencyCode ?? DEFAULT_CURRENCY_CODE;
           transaction.description = input.description ?? null;
           transaction.note = input.note ?? null;
           transaction.occurredAt = input.occurredAt;
@@ -601,7 +707,8 @@ export function createBootstrapErrorRepositories() {
         incomeTotalMinor: 0,
         monthKey: getCurrentMonthKey(),
         monthlyBudgetMinor: 0,
-        obsidianVaultRelativePath: obsidianIntegrationConfig.relativeVaultPathFromApp,
+        obsidianVaultRelativePath:
+          obsidianIntegrationConfig.relativeVaultPathFromApp,
         recentTransactionsCount: 0,
         schemaVersion: 0,
       }),

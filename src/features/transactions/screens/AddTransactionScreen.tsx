@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import type { TransactionType } from '@/src/domain/finance';
 import {
@@ -7,6 +15,7 @@ import {
   loadTransactionFormContext,
   saveTransaction,
   validateTransactionForm,
+  type RecentTransactionTemplate,
   type TransactionFormContext,
   type TransactionFormValues,
   type TransactionSaveImpact,
@@ -28,7 +37,10 @@ import { AppButton, AppCard, AppInput } from '@/src/shared/ui';
 import { getCurrentMonthKey } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
-const paymentMethodOptions: { value: TransactionFormValues['paymentMethod']; label: string }[] = [
+const paymentMethodOptions: {
+  value: TransactionFormValues['paymentMethod'];
+  label: string;
+}[] = [
   { value: 'card', label: 'Karta' },
   { value: 'blik', label: 'BLIK' },
   { value: 'cash', label: 'Gotówka' },
@@ -41,19 +53,26 @@ const transactionTypeOptions: { value: TransactionType; label: string }[] = [
   { value: 'income', label: 'Przychód' },
 ];
 
+type EntryMode = 'manual' | 'ocr';
+
 export function AddTransactionScreen() {
   const { repositories, status } = useAppServices();
 
   const [context, setContext] = useState<TransactionFormContext | null>(null);
   const [form, setForm] = useState<TransactionFormValues | null>(null);
-  const [errors, setErrors] = useState<Partial<Record<keyof TransactionFormValues, string>>>({});
+  const [errors, setErrors] = useState<
+    Partial<Record<keyof TransactionFormValues, string>>
+  >({});
   const [isSaving, setIsSaving] = useState(false);
   const [isImporting, setIsImporting] = useState<OcrImportMode | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [impact, setImpact] = useState<TransactionSaveImpact | null>(null);
   const [ocrResult, setOcrResult] = useState<OcrImportResult | null>(null);
-  const [ocrCorrectionDraft, setOcrCorrectionDraft] = useState<OcrCorrectionDraft | null>(null);
+  const [ocrCorrectionDraft, setOcrCorrectionDraft] =
+    useState<OcrCorrectionDraft | null>(null);
+  const [entryMode, setEntryMode] = useState<EntryMode>('manual');
+  const [showRawOcrText, setShowRawOcrText] = useState(false);
 
   useEffect(() => {
     if (status !== 'ready') {
@@ -73,7 +92,11 @@ export function AddTransactionScreen() {
       })
       .catch((error: unknown) => {
         if (!cancelled) {
-          setSubmitError(error instanceof Error ? error.message : 'Nie udało się przygotować formularza.');
+          setSubmitError(
+            error instanceof Error
+              ? error.message
+              : 'Nie udało się przygotować formularza.',
+          );
         }
       });
 
@@ -85,15 +108,26 @@ export function AddTransactionScreen() {
   if (!context || !form) {
     return (
       <View style={styles.loadingState}>
-        <Text style={styles.loadingText}>Przygotowuję formularz transakcji...</Text>
+        <Text style={styles.loadingText}>
+          Przygotowuję formularz transakcji...
+        </Text>
       </View>
     );
   }
 
   const selectedCategories = context.categoriesByType[form.type];
-  const selectedCategory = selectedCategories.find((item) => item.id === form.categoryId) ?? null;
-  const actionLabel = form.type === 'income' ? 'Dodaj przychód' : 'Dodaj wydatek';
-  const saveLabel = form.type === 'income' ? 'Zapisz przychód' : 'Zapisz wydatek';
+  const recentTemplates = context.recentTemplatesByType[form.type];
+  const selectedCategory =
+    selectedCategories.find((item) => item.id === form.categoryId) ?? null;
+  const actionLabel =
+    form.type === 'income' ? 'Dodaj przychód' : 'Dodaj wydatek';
+  const saveLabel =
+    form.type === 'income' ? 'Zapisz przychód' : 'Zapisz wydatek';
+  const ocrAttentionFields = ocrCorrectionDraft
+    ? Object.values(ocrCorrectionDraft.fields).filter(
+        (field) => field.needsAttention,
+      )
+    : [];
 
   const handleSave = async () => {
     const validation = validateTransactionForm(form);
@@ -118,7 +152,10 @@ export function AddTransactionScreen() {
             }
           : undefined,
       );
-      const refreshed = await loadTransactionFormContext(repositories, getCurrentMonthKey());
+      const refreshed = await loadTransactionFormContext(
+        repositories,
+        getCurrentMonthKey(),
+      );
 
       setContext(refreshed);
       setForm(
@@ -136,9 +173,15 @@ export function AddTransactionScreen() {
       setImpact(result);
       setOcrResult(null);
       setOcrCorrectionDraft(null);
+      setShowRawOcrText(false);
+      setEntryMode('manual');
       setShowDetails(false);
     } catch (error: unknown) {
-      setSubmitError(error instanceof Error ? error.message : 'Nie udało się zapisać transakcji.');
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się zapisać transakcji.',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -153,6 +196,9 @@ export function AddTransactionScreen() {
       const result = await importTransactionFromImage(repositories, mode);
       setOcrResult(result);
       setOcrCorrectionDraft(result.correctionDraft);
+      setEntryMode('ocr');
+      setShowDetails(true);
+      setShowRawOcrText(false);
       setForm((current) =>
         current
           ? buildFormValuesFromCorrectionDraft(
@@ -163,20 +209,49 @@ export function AddTransactionScreen() {
       );
       setShowDetails(false);
     } catch (error: unknown) {
-      setSubmitError(error instanceof Error ? error.message : 'Nie udało się przygotować OCR dla obrazu.');
+      setSubmitError(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się przygotować OCR dla obrazu.',
+      );
     } finally {
       setIsImporting(null);
     }
   };
 
-  const updateDraftField = (key: 'amountText' | 'date' | 'merchantName' | 'categoryId', value: string) => {
+  const applyRecentTemplate = (template: RecentTransactionTemplate) => {
+    setImpact(null);
+    setSubmitError(null);
+    setShowDetails(Boolean(template.description));
+    setForm((current) =>
+      current
+        ? {
+            ...current,
+            amountText: template.amountText,
+            categoryId: template.categoryId,
+            description: template.description,
+            paymentMethod: template.paymentMethod,
+            type: template.type,
+          }
+        : current,
+    );
+  };
+
+  const updateDraftField = (
+    key: 'amountText' | 'date' | 'merchantName' | 'categoryId',
+    value: string,
+  ) => {
     if (!ocrCorrectionDraft) {
       return;
     }
 
     const nextDraft = updateCorrectionField(ocrCorrectionDraft, key, value);
     setOcrCorrectionDraft(nextDraft);
-    setForm((current) => (current ? buildFormValuesFromCorrectionDraft(nextDraft, current) : current));
+    setForm((current) =>
+      current
+        ? buildFormValuesFromCorrectionDraft(nextDraft, current)
+        : current,
+    );
   };
 
   return (
@@ -185,24 +260,34 @@ export function AddTransactionScreen() {
         <Text style={styles.eyebrow}>Update 02.1</Text>
         <Text style={styles.title}>Dodaj transakcję</Text>
         <Text style={styles.description}>
-          OCR nie kończy się już na wypełnieniu pól. Masz osobny, szybki etap korekty, który pokazuje co jest pewne,
-          co wymaga uwagi i kończy się zapisem do tego samego flow co wpis ręczny.
+          Najszybsza ścieżka to ręczny wpis. OCR pozostaje obok jako osobny tryb
+          z korektą tylko tam, gdzie dane naprawdę wymagają uwagi.
         </Text>
       </View>
 
       {impact ? (
         <AppCard>
           <Text style={styles.sectionTitle}>
-            {impact.transactionType === 'income' ? 'Przychód zapisany' : 'Wydatek zapisany'}
+            {impact.transactionType === 'income'
+              ? 'Przychód zapisany'
+              : 'Wydatek zapisany'}
           </Text>
           <Text style={styles.helperText}>
-            Dodano {formatMinorUnits(impact.amountMinor, context.currencyCode)} jako{' '}
-            {impact.transactionType === 'income' ? 'przychód' : 'wydatek'} w kategorii {impact.categoryName}.
+            Dodano {formatMinorUnits(impact.amountMinor, context.currencyCode)}{' '}
+            jako {impact.transactionType === 'income' ? 'przychód' : 'wydatek'}{' '}
+            w kategorii {impact.categoryName}.
           </Text>
           <View style={styles.badgeRow}>
-            <StatusBadge label={impact.sourceLabel} tone={impact.isOcrSource ? 'positive' : 'muted'} />
             <StatusBadge
-              label={impact.transactionType === 'income' ? 'Wpływ na miesiąc zapisany' : 'Wpływ na budżet zapisany'}
+              label={impact.sourceLabel}
+              tone={impact.isOcrSource ? 'positive' : 'muted'}
+            />
+            <StatusBadge
+              label={
+                impact.transactionType === 'income'
+                  ? 'Wpływ na miesiąc zapisany'
+                  : 'Wpływ na budżet zapisany'
+              }
               tone="muted"
             />
           </View>
@@ -252,47 +337,99 @@ export function AddTransactionScreen() {
       ) : null}
 
       <AppCard>
-        <Text style={styles.sectionTitle}>Import z obrazu</Text>
-        <Text style={styles.helperText}>
-          Paragon idzie przez aparat, a screen płatności przez galerię. OCR przygotowuje dane, ale użytkownik kończy
-          flow na etapie korekty i dopiero potem potwierdza zapis.
-        </Text>
-        <View style={styles.importActions}>
-          <AppButton
-            disabled={isImporting !== null}
-            label={isImporting === 'receipt_photo' ? 'Otwieram aparat...' : 'Zrób zdjęcie paragonu'}
-            onPress={() => {
-              void handleImport('receipt_photo');
-            }}
+        <Text style={styles.sectionTitle}>Tryb dodawania</Text>
+        <View style={styles.chipGroup}>
+          <Chip
+            active={entryMode === 'manual'}
+            label="Szybki wpis ręczny"
+            onPress={() => setEntryMode('manual')}
           />
-          <AppButton
-            disabled={isImporting !== null}
-            label={isImporting === 'receipt_gallery' ? 'Otwieram galerię...' : 'Wybierz paragon z galerii'}
-            onPress={() => {
-              void handleImport('receipt_gallery');
-            }}
-          />
-          <AppButton
-            disabled={isImporting !== null}
-            label={isImporting === 'payment_screenshot' ? 'Otwieram galerię...' : 'Wybierz screen płatności'}
-            onPress={() => {
-              void handleImport('payment_screenshot');
-            }}
+          <Chip
+            active={entryMode === 'ocr'}
+            label="OCR z obrazu"
+            onPress={() => setEntryMode('ocr')}
           />
         </View>
-        <Text style={styles.footnoteText}>
-          OCR on-device wymaga natywnego development builda. Na webie albo bez modułu ML Kit pozostaje fallback
-          ręczny bez utraty załącznika.
+        <Text style={styles.helperText}>
+          {entryMode === 'manual'
+            ? 'Domyślnie pokazujemy najkrótszą ścieżkę do codziennego wpisu. OCR uruchamiaj tylko wtedy, gdy naprawdę dodajesz z obrazu.'
+            : 'Paragon idzie przez aparat albo galerię, a screen płatności przez galerię. Po imporcie przechodzisz od razu do korekty.'}
         </Text>
       </AppCard>
+
+      {entryMode === 'ocr' ? (
+        <AppCard>
+          <Text style={styles.sectionTitle}>Import z obrazu</Text>
+          <View style={styles.importActions}>
+            <AppButton
+              disabled={isImporting !== null}
+              label={
+                isImporting === 'receipt_photo'
+                  ? 'Otwieram aparat...'
+                  : 'Zrób zdjęcie paragonu'
+              }
+              onPress={() => {
+                void handleImport('receipt_photo');
+              }}
+            />
+            <AppButton
+              disabled={isImporting !== null}
+              label={
+                isImporting === 'receipt_gallery'
+                  ? 'Otwieram galerię...'
+                  : 'Wybierz paragon z galerii'
+              }
+              onPress={() => {
+                void handleImport('receipt_gallery');
+              }}
+            />
+            <AppButton
+              disabled={isImporting !== null}
+              label={
+                isImporting === 'payment_screenshot'
+                  ? 'Otwieram galerię...'
+                  : 'Wybierz screen płatności'
+              }
+              onPress={() => {
+                void handleImport('payment_screenshot');
+              }}
+            />
+          </View>
+          <Text style={styles.footnoteText}>
+            OCR on-device wymaga natywnego development builda. Na webie albo bez
+            modułu ML Kit pozostaje fallback ręczny bez utraty załącznika.
+          </Text>
+        </AppCard>
+      ) : null}
 
       {ocrResult && ocrCorrectionDraft ? (
         <AppCard>
           <Text style={styles.sectionTitle}>Ekran korekty OCR</Text>
-          <Image source={{ uri: ocrResult.attachment.fileUri }} style={styles.previewImage} />
+          <Image
+            source={{ uri: ocrResult.attachment.fileUri }}
+            style={styles.previewImage}
+          />
           <Text style={styles.helperText}>{ocrResult.message}</Text>
+          {ocrAttentionFields.length > 0 ? (
+            <Text style={styles.attentionText}>
+              Sprawdź najpierw {ocrAttentionFields.length}{' '}
+              {ocrAttentionFields.length === 1 ? 'pole' : 'pola'} z oznaczeniem
+              uwagi.
+            </Text>
+          ) : (
+            <Text style={styles.helperText}>
+              Najważniejsze pola wyglądają pewnie. Wystarczy szybki przegląd i
+              zapis.
+            </Text>
+          )}
           <View style={styles.badgeRow}>
-            <StatusBadge label={ocrResult.attachment.sourceType === 'receipt_ocr' ? 'Paragon' : 'Screen płatności'} />
+            <StatusBadge
+              label={
+                ocrResult.attachment.sourceType === 'receipt_ocr'
+                  ? 'Paragon'
+                  : 'Screen płatności'
+              }
+            />
             <StatusBadge
               label={getCorrectionStatusLabel(ocrCorrectionDraft)}
               tone={ocrCorrectionDraft.requiresReview ? 'muted' : 'positive'}
@@ -316,17 +453,29 @@ export function AddTransactionScreen() {
             <View
               style={[
                 styles.reviewFieldCard,
-                ocrCorrectionDraft.fields.categoryId.needsAttention ? styles.reviewFieldCardAttention : null,
+                ocrCorrectionDraft.fields.categoryId.needsAttention
+                  ? styles.reviewFieldCardAttention
+                  : null,
               ]}
             >
               <View style={styles.reviewFieldHeader}>
-                <Text style={styles.reviewFieldLabel}>{ocrCorrectionDraft.fields.categoryId.label}</Text>
+                <Text style={styles.reviewFieldLabel}>
+                  {ocrCorrectionDraft.fields.categoryId.label}
+                </Text>
                 <StatusBadge
-                  label={getConfidenceLabel(ocrCorrectionDraft.fields.categoryId.confidence)}
-                  tone={ocrCorrectionDraft.fields.categoryId.needsAttention ? 'muted' : 'positive'}
+                  label={getConfidenceLabel(
+                    ocrCorrectionDraft.fields.categoryId.confidence,
+                  )}
+                  tone={
+                    ocrCorrectionDraft.fields.categoryId.needsAttention
+                      ? 'muted'
+                      : 'positive'
+                  }
                 />
               </View>
-              <Text style={styles.reviewFieldHelper}>{ocrCorrectionDraft.fields.categoryId.helperText}</Text>
+              <Text style={styles.reviewFieldHelper}>
+                {ocrCorrectionDraft.fields.categoryId.helperText}
+              </Text>
               <View style={styles.chipGroup}>
                 {selectedCategories.map((category) => (
                   <Chip
@@ -349,9 +498,25 @@ export function AddTransactionScreen() {
           </View>
 
           {ocrCorrectionDraft.rawText ? (
-            <View style={styles.rawTextBox}>
-              <Text style={styles.rawTextTitle}>Surowy tekst OCR</Text>
-              <Text style={styles.rawTextValue}>{ocrCorrectionDraft.rawText}</Text>
+            <View style={styles.rawTextSection}>
+              <Pressable
+                onPress={() => setShowRawOcrText((value) => !value)}
+                style={styles.detailsToggle}
+              >
+                <Text style={styles.detailsToggleText}>
+                  {showRawOcrText
+                    ? 'Ukryj surowy tekst OCR'
+                    : 'Pokaż surowy tekst OCR'}
+                </Text>
+              </Pressable>
+              {showRawOcrText ? (
+                <View style={styles.rawTextBox}>
+                  <Text style={styles.rawTextTitle}>Surowy tekst OCR</Text>
+                  <Text style={styles.rawTextValue}>
+                    {ocrCorrectionDraft.rawText}
+                  </Text>
+                </View>
+              ) : null}
             </View>
           ) : null}
 
@@ -360,10 +525,14 @@ export function AddTransactionScreen() {
               onPress={() => {
                 setOcrResult(null);
                 setOcrCorrectionDraft(null);
+                setShowRawOcrText(false);
+                setEntryMode('manual');
               }}
               style={[styles.secondaryButton, styles.secondaryButtonMuted]}
             >
-              <Text style={styles.secondaryButtonLabelMuted}>Porzuć korektę OCR</Text>
+              <Text style={styles.secondaryButtonLabelMuted}>
+                Porzuć korektę OCR
+              </Text>
             </Pressable>
           </View>
         </AppCard>
@@ -373,9 +542,40 @@ export function AddTransactionScreen() {
         <Text style={styles.sectionTitle}>{actionLabel}</Text>
         {ocrCorrectionDraft ? (
           <Text style={styles.helperText}>
-            Formularz poniżej jest zasilany przez etap korekty OCR. Nadal zapisuje do tej samej warstwy danych co
-            wpis ręczny, bez równoległego modelu.
+            Formularz poniżej jest zasilany przez etap korekty OCR. Nadal
+            zapisuje do tej samej warstwy danych co wpis ręczny, bez
+            równoległego modelu.
           </Text>
+        ) : (
+          <Text style={styles.helperText}>
+            Najczęstszy flow to kwota, kategoria i zapis. Reszta pól jest
+            schowana w szczegółach, żeby nie spowalniać codziennego dodawania.
+          </Text>
+        )}
+
+        {!ocrCorrectionDraft && recentTemplates.length > 0 ? (
+          <View style={styles.quickRepeatSection}>
+            <FieldLabel label="Szybkie powtórki" />
+            <Text style={styles.helperText}>
+              Jednym tapnięciem podstawisz ostatni podobny wpis razem z
+              kategorią, kwotą i metodą płatności.
+            </Text>
+            <View style={styles.chipGroup}>
+              {recentTemplates.map((template) => (
+                <Chip
+                  key={template.transactionId}
+                  active={
+                    form.categoryId === template.categoryId &&
+                    form.amountText === template.amountText &&
+                    form.paymentMethod === template.paymentMethod &&
+                    form.description === template.description
+                  }
+                  label={`${template.label} • ${template.amountText}`}
+                  onPress={() => applyRecentTemplate(template)}
+                />
+              ))}
+            </View>
+          </View>
         ) : null}
 
         <FieldLabel label="Typ transakcji" required />
@@ -387,7 +587,9 @@ export function AddTransactionScreen() {
               label={option.label}
               onPress={() =>
                 setForm((current) =>
-                  current && context ? createFormValuesForType(current, option.value, context) : current,
+                  current && context
+                    ? createFormValuesForType(current, option.value, context)
+                    : current,
                 )
               }
             />
@@ -399,7 +601,9 @@ export function AddTransactionScreen() {
           autoFocus={!ocrResult}
           keyboardType="decimal-pad"
           onChangeText={(value) => {
-            setForm((current) => (current ? { ...current, amountText: value } : current));
+            setForm((current) =>
+              current ? { ...current, amountText: value } : current,
+            );
             if (ocrCorrectionDraft) {
               updateDraftField('amountText', value);
             }
@@ -407,7 +611,9 @@ export function AddTransactionScreen() {
           placeholder="Np. 34,90"
           value={form.amountText}
         />
-        {errors.amountText ? <Text style={styles.errorText}>{errors.amountText}</Text> : null}
+        {errors.amountText ? (
+          <Text style={styles.errorText}>{errors.amountText}</Text>
+        ) : null}
 
         <FieldLabel label="Kategoria" required />
         <View style={styles.chipGroup}>
@@ -417,7 +623,9 @@ export function AddTransactionScreen() {
               active={form.categoryId === category.id}
               label={category.name}
               onPress={() => {
-                setForm((current) => (current ? { ...current, categoryId: category.id } : current));
+                setForm((current) =>
+                  current ? { ...current, categoryId: category.id } : current,
+                );
                 if (ocrCorrectionDraft) {
                   updateDraftField('categoryId', category.id);
                 }
@@ -425,17 +633,29 @@ export function AddTransactionScreen() {
             />
           ))}
         </View>
-        {errors.categoryId ? <Text style={styles.errorText}>{errors.categoryId}</Text> : null}
+        {errors.categoryId ? (
+          <Text style={styles.errorText}>{errors.categoryId}</Text>
+        ) : null}
 
         <View style={styles.summaryRow}>
           <Text style={styles.summaryText}>Data: {form.date}</Text>
-          <Text style={styles.summaryText}>Typ: {form.type === 'income' ? 'Przychód' : 'Wydatek'}</Text>
           <Text style={styles.summaryText}>
-            Metoda: {paymentMethodOptions.find((item) => item.value === form.paymentMethod)?.label}
+            Typ: {form.type === 'income' ? 'Przychód' : 'Wydatek'}
+          </Text>
+          <Text style={styles.summaryText}>
+            Metoda:{' '}
+            {
+              paymentMethodOptions.find(
+                (item) => item.value === form.paymentMethod,
+              )?.label
+            }
           </Text>
         </View>
 
-        <Pressable onPress={() => setShowDetails((value) => !value)} style={styles.detailsToggle}>
+        <Pressable
+          onPress={() => setShowDetails((value) => !value)}
+          style={styles.detailsToggle}
+        >
           <Text style={styles.detailsToggleText}>
             {showDetails ? 'Ukryj szczegóły' : 'Pokaż szczegóły'}
           </Text>
@@ -446,7 +666,9 @@ export function AddTransactionScreen() {
             <FieldLabel label="Data" required />
             <AppInput
               onChangeText={(value) => {
-                setForm((current) => (current ? { ...current, date: value } : current));
+                setForm((current) =>
+                  current ? { ...current, date: value } : current,
+                );
                 if (ocrCorrectionDraft) {
                   updateDraftField('date', value);
                 }
@@ -454,7 +676,9 @@ export function AddTransactionScreen() {
               placeholder="RRRR-MM-DD"
               value={form.date}
             />
-            {errors.date ? <Text style={styles.errorText}>{errors.date}</Text> : null}
+            {errors.date ? (
+              <Text style={styles.errorText}>{errors.date}</Text>
+            ) : null}
 
             <FieldLabel label="Metoda płatności" />
             <View style={styles.chipGroup}>
@@ -464,7 +688,11 @@ export function AddTransactionScreen() {
                   active={form.paymentMethod === option.value}
                   label={option.label}
                   onPress={() =>
-                    setForm((current) => (current ? { ...current, paymentMethod: option.value } : current))
+                    setForm((current) =>
+                      current
+                        ? { ...current, paymentMethod: option.value }
+                        : current,
+                    )
                   }
                 />
               ))}
@@ -474,7 +702,9 @@ export function AddTransactionScreen() {
             <AppInput
               multiline
               onChangeText={(value) => {
-                setForm((current) => (current ? { ...current, description: value } : current));
+                setForm((current) =>
+                  current ? { ...current, description: value } : current,
+                );
                 if (ocrCorrectionDraft) {
                   updateDraftField('merchantName', value);
                 }
@@ -495,14 +725,15 @@ export function AddTransactionScreen() {
       <AppCard>
         <Text style={styles.sectionTitle}>Podgląd zapisu</Text>
         <Text style={styles.helperText}>
-          Zapis utworzy transakcję typu `{form.type}` z kategorią {selectedCategory?.name ?? 'nieustawioną'}.
-          Bilans miesiąca dla {form.date.slice(0, 7)} przelicza się wspólnie dla przychodów i wydatków, a budżet
-          kategorii jest aktualizowany tylko dla wydatków.
+          Zapis utworzy transakcję typu `{form.type}` z kategorią{' '}
+          {selectedCategory?.name ?? 'nieustawioną'}. Bilans miesiąca dla{' '}
+          {form.date.slice(0, 7)} przelicza się wspólnie dla przychodów i
+          wydatków, a budżet kategorii jest aktualizowany tylko dla wydatków.
         </Text>
         {ocrResult ? (
           <Text style={styles.helperText}>
-            Ponieważ wpis przeszedł przez korektę OCR, transakcja zapisze się ze statusem `reviewed` i zachowa
-            surowy tekst oraz powiązany załącznik.
+            Ponieważ wpis przeszedł przez korektę OCR, transakcja zapisze się ze
+            statusem `reviewed` i zachowa surowy tekst oraz powiązany załącznik.
           </Text>
         ) : null}
       </AppCard>
@@ -510,7 +741,9 @@ export function AddTransactionScreen() {
       {isImporting ? (
         <View style={styles.importOverlay}>
           <ActivityIndicator color={colors.primary} size="small" />
-          <Text style={styles.helperText}>Przetwarzam obraz i przygotowuję dane do korekty...</Text>
+          <Text style={styles.helperText}>
+            Przetwarzam obraz i przygotowuję dane do korekty...
+          </Text>
         </View>
       ) : null}
     </ScrollView>
@@ -552,13 +785,24 @@ function Chip({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}>
-      <Text style={[styles.chipLabel, active ? styles.chipLabelActive : null]}>{label}</Text>
+    <Pressable
+      onPress={onPress}
+      style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+    >
+      <Text style={[styles.chipLabel, active ? styles.chipLabelActive : null]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
 
-function FieldLabel({ label, required = false }: { label: string; required?: boolean }) {
+function FieldLabel({
+  label,
+  required = false,
+}: {
+  label: string;
+  required?: boolean;
+}) {
   return (
     <Text style={styles.fieldLabel}>
       {label}
@@ -577,18 +821,36 @@ function ReviewFieldCard({
   keyboardType?: 'default' | 'decimal-pad';
 }) {
   return (
-    <View style={[styles.reviewFieldCard, field.needsAttention ? styles.reviewFieldCardAttention : null]}>
+    <View
+      style={[
+        styles.reviewFieldCard,
+        field.needsAttention ? styles.reviewFieldCardAttention : null,
+      ]}
+    >
       <View style={styles.reviewFieldHeader}>
         <Text style={styles.reviewFieldLabel}>{field.label}</Text>
-        <StatusBadge label={getConfidenceLabel(field.confidence)} tone={field.needsAttention ? 'muted' : 'positive'} />
+        <StatusBadge
+          label={getConfidenceLabel(field.confidence)}
+          tone={field.needsAttention ? 'muted' : 'positive'}
+        />
       </View>
-      <AppInput keyboardType={keyboardType} onChangeText={onChangeText} value={field.value} />
+      <AppInput
+        keyboardType={keyboardType}
+        onChangeText={onChangeText}
+        value={field.value}
+      />
       <Text style={styles.reviewFieldHelper}>{field.helperText}</Text>
     </View>
   );
 }
 
-function StatusBadge({ label, tone = 'default' }: { label: string; tone?: 'default' | 'positive' | 'muted' }) {
+function StatusBadge({
+  label,
+  tone = 'default',
+}: {
+  label: string;
+  tone?: 'default' | 'positive' | 'muted';
+}) {
   return (
     <View
       style={[
@@ -625,7 +887,8 @@ function ImpactMetric({
     <View style={styles.metricCard}>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricValue}>
-        {formatMinorUnits(before, currencyCode)} → {formatMinorUnits(after, currencyCode)}
+        {formatMinorUnits(before, currencyCode)} →{' '}
+        {formatMinorUnits(after, currencyCode)}
       </Text>
     </View>
   );
@@ -646,7 +909,10 @@ function ImpactRemaining({
     <View style={styles.metricCard}>
       <Text style={styles.metricLabel}>{label}</Text>
       <Text style={styles.metricValue}>
-        {before === null ? 'bez limitu' : formatMinorUnits(before, currencyCode)} →{' '}
+        {before === null
+          ? 'bez limitu'
+          : formatMinorUnits(before, currencyCode)}{' '}
+        →{' '}
         {after === null ? 'bez limitu' : formatMinorUnits(after, currencyCode)}
       </Text>
     </View>
@@ -706,6 +972,12 @@ const styles = StyleSheet.create({
     color: colors.primary,
     fontSize: typography.caption,
     fontWeight: '700',
+  },
+  attentionText: {
+    color: colors.primary,
+    fontSize: typography.caption,
+    fontWeight: '700',
+    lineHeight: 20,
   },
   errorText: {
     color: colors.danger,
@@ -785,11 +1057,17 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
     width: '100%',
   },
+  quickRepeatSection: {
+    gap: spacing.sm,
+  },
   rawTextBox: {
     backgroundColor: colors.background,
     borderRadius: radius.md,
     gap: spacing.xs,
     padding: spacing.md,
+  },
+  rawTextSection: {
+    gap: spacing.sm,
   },
   rawTextTitle: {
     color: colors.textMuted,

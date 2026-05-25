@@ -1,8 +1,20 @@
-import { getEntrySourceMeta, type Category, type PaymentMethod, type TransactionType } from '@/src/domain/finance';
-import { loadBudgetSetup, type BudgetCategoryItem } from '@/src/features/budgets/data/budgetSetup';
+import {
+  getEntrySourceMeta,
+  type Category,
+  type PaymentMethod,
+  type TransactionType,
+} from '@/src/domain/finance';
+import {
+  loadBudgetSetup,
+  type BudgetCategoryItem,
+} from '@/src/features/budgets/data/budgetSetup';
 import type { AppRepositories } from '@/src/storage';
 import { DEFAULT_CURRENCY_CODE } from '@/src/storage/sqlite/constants';
-import { getMonthKeyFromDateInput, getTodayDateInput, isValidDateInput } from '@/src/shared/utils/date';
+import {
+  getMonthKeyFromDateInput,
+  getTodayDateInput,
+  isValidDateInput,
+} from '@/src/shared/utils/date';
 import { parseMoneyToMinorUnits } from '@/src/shared/utils/money';
 
 export type TransactionFormValues = {
@@ -14,11 +26,23 @@ export type TransactionFormValues = {
   paymentMethod: PaymentMethod;
 };
 
+export type RecentTransactionTemplate = {
+  transactionId: string;
+  label: string;
+  amountText: string;
+  categoryId: string;
+  categoryName: string;
+  description: string;
+  paymentMethod: PaymentMethod;
+  type: TransactionType;
+};
+
 export type TransactionFormContext = {
   currencyCode: string;
   categoriesByType: Record<TransactionType, Category[]>;
   defaultPaymentMethodByType: Record<TransactionType, PaymentMethod>;
   defaultValues: TransactionFormValues;
+  recentTemplatesByType: Record<TransactionType, RecentTransactionTemplate[]>;
 };
 
 export type TransactionSaveImpact = {
@@ -53,7 +77,12 @@ export type TransactionSourceDraft = {
   ocrRawText?: string | null;
   ocrStatus?: 'not_requested' | 'pending' | 'processed' | 'reviewed' | 'failed';
   sourceReference?: string | null;
-  sourceType?: 'manual' | 'receipt_ocr' | 'screenshot_ocr' | 'obsidian_import' | 'obsidian_sync';
+  sourceType?:
+    | 'manual'
+    | 'receipt_ocr'
+    | 'screenshot_ocr'
+    | 'obsidian_import'
+    | 'obsidian_sync';
 };
 
 export async function loadTransactionFormContext(
@@ -87,10 +116,16 @@ export async function loadTransactionFormContext(
       description: '',
       paymentMethod: lastExpense?.paymentMethod ?? 'card',
     },
+    recentTemplatesByType: {
+      expense: buildRecentTemplates(recent, 'expense'),
+      income: buildRecentTemplates(recent, 'income'),
+    },
   };
 }
 
-export function validateTransactionForm(values: TransactionFormValues): TransactionValidationResult {
+export function validateTransactionForm(
+  values: TransactionFormValues,
+): TransactionValidationResult {
   const errors: TransactionValidationResult['errors'] = {};
   const amountMinor = parseMoneyToMinorUnits(values.amountText);
 
@@ -100,7 +135,9 @@ export function validateTransactionForm(values: TransactionFormValues): Transact
 
   if (!values.categoryId) {
     errors.categoryId =
-      values.type === 'income' ? 'Wybierz kategorię przychodu.' : 'Wybierz kategorię wydatku.';
+      values.type === 'income'
+        ? 'Wybierz kategorię przychodu.'
+        : 'Wybierz kategorię wydatku.';
   }
 
   if (!isValidDateInput(values.date)) {
@@ -129,8 +166,13 @@ export async function saveTransaction(
 ): Promise<TransactionSaveImpact> {
   const validation = validateTransactionForm(values);
 
-  if (validation.amountMinor === null || Object.keys(validation.errors).length > 0) {
-    throw new Error('Nie można zapisać transakcji bez poprawnych danych formularza.');
+  if (
+    validation.amountMinor === null ||
+    Object.keys(validation.errors).length > 0
+  ) {
+    throw new Error(
+      'Nie można zapisać transakcji bez poprawnych danych formularza.',
+    );
   }
 
   const resolvedSourceType = sourceDraft?.sourceType ?? 'manual';
@@ -139,13 +181,17 @@ export async function saveTransaction(
   const [beforeSummary, categories, beforeSetup] = await Promise.all([
     repositories.transactions.getMonthSummary(monthKey),
     repositories.categories.listByTransactionType(values.type),
-    values.type === 'expense' ? loadBudgetSetup(repositories, monthKey) : Promise.resolve(null),
+    values.type === 'expense'
+      ? loadBudgetSetup(repositories, monthKey)
+      : Promise.resolve(null),
   ]);
 
   const category = categories.find((item) => item.id === values.categoryId);
 
   if (!category) {
-    throw new Error('Wybrana kategoria transakcji nie istnieje albo jest nieaktywna.');
+    throw new Error(
+      'Wybrana kategoria transakcji nie istnieje albo jest nieaktywna.',
+    );
   }
 
   const beforeCategory =
@@ -170,12 +216,17 @@ export async function saveTransaction(
   });
 
   if (sourceDraft?.attachmentId) {
-    await repositories.attachments.linkToTransaction(sourceDraft.attachmentId, created.id);
+    await repositories.attachments.linkToTransaction(
+      sourceDraft.attachmentId,
+      created.id,
+    );
   }
 
   const [afterSummary, afterSetup] = await Promise.all([
     repositories.transactions.getMonthSummary(monthKey),
-    values.type === 'expense' ? loadBudgetSetup(repositories, monthKey) : Promise.resolve(null),
+    values.type === 'expense'
+      ? loadBudgetSetup(repositories, monthKey)
+      : Promise.resolve(null),
   ]);
 
   const afterCategory =
@@ -210,7 +261,9 @@ export function createFormValuesForType(
   context: TransactionFormContext,
 ): TransactionFormValues {
   const categories = context.categoriesByType[type];
-  const hasCurrentCategory = categories.some((category) => category.id === current.categoryId);
+  const hasCurrentCategory = categories.some(
+    (category) => category.id === current.categoryId,
+  );
 
   return {
     ...current,
@@ -222,4 +275,62 @@ export function createFormValuesForType(
 
 function findCategoryBudget(items: BudgetCategoryItem[], categoryId: string) {
   return items.find((item) => item.category.id === categoryId) ?? null;
+}
+
+function buildRecentTemplates(
+  recent: Awaited<ReturnType<AppRepositories['transactions']['listRecent']>>,
+  type: TransactionType,
+): RecentTransactionTemplate[] {
+  const seenKeys = new Set<string>();
+
+  return recent
+    .filter(
+      (item) => item.type === type && item.categoryId && item.categoryName,
+    )
+    .filter((item) => {
+      const signature = [
+        item.categoryId,
+        item.amountMinor,
+        item.paymentMethod,
+        item.description?.trim().toLocaleLowerCase('pl-PL') ?? '',
+      ].join('|');
+
+      if (seenKeys.has(signature)) {
+        return false;
+      }
+
+      seenKeys.add(signature);
+      return true;
+    })
+    .slice(0, 4)
+    .map((item) => ({
+      amountText: formatMinorToInput(item.amountMinor),
+      categoryId: item.categoryId ?? '',
+      categoryName: item.categoryName ?? 'Bez kategorii',
+      description: item.description ?? '',
+      label: buildRecentTemplateLabel(
+        item.categoryName ?? 'Bez kategorii',
+        item.description,
+      ),
+      paymentMethod: item.paymentMethod,
+      transactionId: item.id,
+      type: item.type,
+    }));
+}
+
+function buildRecentTemplateLabel(
+  categoryName: string,
+  description: string | null,
+) {
+  const trimmedDescription = description?.trim();
+
+  if (!trimmedDescription) {
+    return categoryName;
+  }
+
+  return `${categoryName} • ${trimmedDescription.slice(0, 22)}`;
+}
+
+function formatMinorToInput(amountMinor: number) {
+  return (amountMinor / 100).toFixed(2).replace('.', ',');
 }

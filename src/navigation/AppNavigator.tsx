@@ -10,6 +10,7 @@ import { AnalysisScreen } from '@/src/features/analysis/screens/AnalysisScreen';
 import { BudgetsScreen } from '@/src/features/budgets/screens/BudgetsScreen';
 import { DashboardScreen } from '@/src/features/dashboard/screens/DashboardScreen';
 import { HistoryScreen } from '@/src/features/history/screens/HistoryScreen';
+import { SettingsScreen } from '@/src/features/settings/screens/SettingsScreen';
 import { AddTransactionScreen } from '@/src/features/transactions/screens/AddTransactionScreen';
 import { colors } from '@/src/shared/theme';
 
@@ -19,6 +20,7 @@ export type RootTabParamList = {
   History: undefined;
   Budgets: undefined;
   Analysis: undefined;
+  Settings: undefined;
 };
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
@@ -36,12 +38,16 @@ const navigationTheme: NavigationTheme = {
   },
 };
 
-const tabIcons: Record<keyof RootTabParamList, keyof typeof FontAwesome5.glyphMap> = {
+const tabIcons: Record<
+  keyof RootTabParamList,
+  keyof typeof FontAwesome5.glyphMap
+> = {
   Dashboard: 'chart-pie',
   AddTransaction: 'plus-circle',
   History: 'list-alt',
   Budgets: 'wallet',
   Analysis: 'chart-line',
+  Settings: 'shield-alt',
 };
 
 export function AppNavigator() {
@@ -67,19 +73,45 @@ export function AppNavigator() {
             paddingTop: 8,
           },
           tabBarIcon: ({ color, size }) => (
-            <FontAwesome5 iconStyle="solid" name={tabIcons[route.name]} color={color} size={size - 2} />
+            <FontAwesome5
+              iconStyle="solid"
+              name={tabIcons[route.name]}
+              color={color}
+              size={size - 2}
+            />
           ),
         })}
       >
-        <Tab.Screen name="Dashboard" component={DashboardScreen} options={{ title: 'Dashboard' }} />
+        <Tab.Screen
+          name="Dashboard"
+          component={DashboardScreen}
+          options={{ title: 'Dashboard' }}
+        />
         <Tab.Screen
           name="AddTransaction"
           component={AddTransactionScreen}
           options={{ title: 'Dodaj transakcję', tabBarLabel: 'Dodaj' }}
         />
-        <Tab.Screen name="History" component={HistoryScreen} options={{ title: 'Historia' }} />
-        <Tab.Screen name="Budgets" component={BudgetsScreen} options={{ title: 'Budżety' }} />
-        <Tab.Screen name="Analysis" component={AnalysisScreen} options={{ title: 'Analizy' }} />
+        <Tab.Screen
+          name="History"
+          component={HistoryScreen}
+          options={{ title: 'Historia' }}
+        />
+        <Tab.Screen
+          name="Budgets"
+          component={BudgetsScreen}
+          options={{ title: 'Budżety' }}
+        />
+        <Tab.Screen
+          name="Analysis"
+          component={AnalysisScreen}
+          options={{ title: 'Analizy' }}
+        />
+        <Tab.Screen
+          name="Settings"
+          component={SettingsScreen}
+          options={{ title: 'Bezpieczeństwo' }}
+        />
       </Tab.Navigator>
     </NavigationContainer>
   );

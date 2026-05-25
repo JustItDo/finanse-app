@@ -95,17 +95,35 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_category_budgets_month_key ON category_budgets (month_key);
     `,
   },
+  {
+    version: 2,
+    name: 'transaction_month_indexes',
+    sql: `
+      CREATE INDEX IF NOT EXISTS idx_transactions_month_key
+      ON transactions (substr(occurred_at, 1, 7), occurred_at DESC, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_month_type_category
+      ON transactions (substr(occurred_at, 1, 7), type, category_id, occurred_at DESC, created_at DESC);
+
+      CREATE INDEX IF NOT EXISTS idx_transactions_month_type
+      ON transactions (substr(occurred_at, 1, 7), type, occurred_at DESC, created_at DESC);
+    `,
+  },
 ];
 
 export async function runMigrations(db: SQLiteDatabase) {
-  const result = await db.getFirstAsync<{ user_version: number }>('PRAGMA user_version;');
+  const result = await db.getFirstAsync<{ user_version: number }>(
+    'PRAGMA user_version;',
+  );
   const currentVersion = result?.user_version ?? 0;
 
   if (currentVersion >= DATABASE_SCHEMA_VERSION) {
     return;
   }
 
-  const pendingMigrations = migrations.filter((migration) => migration.version > currentVersion);
+  const pendingMigrations = migrations.filter(
+    (migration) => migration.version > currentVersion,
+  );
 
   for (const migration of pendingMigrations) {
     await db.withExclusiveTransactionAsync(async (txn) => {
