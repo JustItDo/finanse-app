@@ -36,7 +36,8 @@ import {
   saveSecuritySetupPromptDismissed,
 } from '@/src/features/security/data/securityStorage';
 import { SecurityLockScreen } from '@/src/features/security/components/SecurityLockScreen';
-import { colors, spacing } from '@/src/shared/theme';
+import { spacing, type AppThemeColors } from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 
 type SecurityContextValue = {
   status: 'loading' | 'ready';
@@ -107,6 +108,8 @@ async function detectSecurityCapabilities(): Promise<SecurityCapabilities> {
 }
 
 export function SecurityProvider({ children }: PropsWithChildren) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const [status, setStatus] =
     useState<SecurityContextValue['status']>('loading');
   const [settings, setSettings] = useState<SecuritySettings>(
@@ -483,27 +486,29 @@ export function useSecurity() {
   return context;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  appContent: {
-    flex: 1,
-  },
-  lockOverlay: {
-    ...StyleSheet.absoluteFill,
-  },
-  stateScreen: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    flex: 1,
-    gap: spacing.md,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  stateText: {
-    color: colors.text,
-    textAlign: 'center',
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    container: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    appContent: {
+      flex: 1,
+    },
+    lockOverlay: {
+      ...StyleSheet.absoluteFill,
+    },
+    stateScreen: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      gap: spacing.md,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    stateText: {
+      color: colors.text,
+      textAlign: 'center',
+    },
+  });
+}

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -29,11 +29,18 @@ import {
 } from '@/src/features/history/data/history';
 import type { RootTabParamList } from '@/src/navigation/AppNavigator';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
-import { colors, radius, spacing, typography } from '@/src/shared/theme';
+import {
+  radius,
+  spacing,
+  typography,
+  type AppThemeColors,
+} from '@/src/shared/theme';
+import { useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import {
   AppButton,
   AppCard,
   AppInput,
+  CollapsibleSection,
   useFocusedFieldScroll,
   useScreenContentInsets,
 } from '@/src/shared/ui';
@@ -75,6 +82,7 @@ function formatHistoryMonthSummary(monthKey: string) {
 
 export function HistoryScreen() {
   const { repositories, status, error } = useAppServices();
+  const styles = useThemeStyles(createStyles);
   const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
   const isFocused = useIsFocused();
@@ -104,12 +112,13 @@ export function HistoryScreen() {
       },
       { scrollToTarget: scrollToKeyboardTarget },
     );
-  const registerDetailField = (fieldId: string) => (event: LayoutChangeEvent) => {
-    setFieldOffset(
-      fieldId,
-      detailCardOffsetYRef.current + event.nativeEvent.layout.y,
-    );
-  };
+  const registerDetailField =
+    (fieldId: string) => (event: LayoutChangeEvent) => {
+      setFieldOffset(
+        fieldId,
+        detailCardOffsetYRef.current + event.nativeEvent.layout.y,
+      );
+    };
 
   const [historyState, setHistoryState] = useState<HistoryScreenState | null>(
     null,
@@ -138,6 +147,57 @@ export function HistoryScreen() {
   );
   const latestSelectedTransactionIdRef = useRef<string | null>(null);
 
+  const clearInlineDetail = () => {
+    latestSelectedTransactionIdRef.current = null;
+    setSelectedTransactionId(null);
+    setDetail(null);
+    setDetailError(null);
+    setEditContext(null);
+    setEditValues(null);
+    setIsEditing(false);
+    setConfirmDelete(false);
+    setEditErrors({});
+  };
+
+  const prepareInlineDetailSelection = (transactionId: string) => {
+    latestSelectedTransactionIdRef.current = transactionId;
+    setSelectedTransactionId(transactionId);
+    setDetail(null);
+    setDetailError(null);
+    setEditContext(null);
+    setEditValues(null);
+    setIsEditing(false);
+    setConfirmDelete(false);
+    setEditErrors({});
+  };
+
+  const loadInlineDetailData = useCallback(
+    async (transactionId: string) => {
+      const [nextDetail, nextEditContext] = await Promise.all([
+        loadHistoryDetail(repositories, transactionId),
+        loadHistoryEditContext(repositories, transactionId),
+      ]);
+
+      return { nextDetail, nextEditContext };
+    },
+    [repositories],
+  );
+
+  const applyInlineDetailData = useCallback(
+    ({
+      nextDetail,
+      nextEditContext,
+    }: Awaited<ReturnType<typeof loadInlineDetailData>>) => {
+      setDetail(nextDetail);
+      setEditContext(nextEditContext);
+      setEditValues(nextEditContext.values);
+      setDetailError(null);
+      setEditErrors({});
+      setConfirmDelete(false);
+    },
+    [],
+  );
+
   const loadScreen = async (
     filters: Parameters<typeof loadHistoryScreenState>[1],
     preferredSelectionId?: string | null,
@@ -146,7 +206,6 @@ export function HistoryScreen() {
     const nextSelectionId = resolveSelectedTransactionId(
       nextState.transactions,
       preferredSelectionId,
-      latestSelectedTransactionIdRef.current,
     );
 
     latestFiltersRef.current = nextState.filters;
@@ -157,13 +216,7 @@ export function HistoryScreen() {
     setLoadError(null);
 
     if (!nextSelectionId) {
-      setDetail(null);
-      setDetailError(null);
-      setEditContext(null);
-      setEditValues(null);
-      setIsEditing(false);
-      setConfirmDelete(false);
-      setEditErrors({});
+      clearInlineDetail();
     }
   };
 
@@ -183,7 +236,6 @@ export function HistoryScreen() {
 
         const nextSelectionId = resolveSelectedTransactionId(
           nextState.transactions,
-          null,
           latestSelectedTransactionIdRef.current,
         );
 
@@ -195,13 +247,7 @@ export function HistoryScreen() {
         setLoadError(null);
 
         if (!nextSelectionId) {
-          setDetail(null);
-          setDetailError(null);
-          setEditContext(null);
-          setEditValues(null);
-          setIsEditing(false);
-          setConfirmDelete(false);
-          setEditErrors({});
+          clearInlineDetail();
         }
       })
       .catch((reason: unknown) => {
@@ -228,21 +274,13 @@ export function HistoryScreen() {
 
     let cancelled = false;
 
-    Promise.all([
-      loadHistoryDetail(repositories, selectedTransactionId),
-      loadHistoryEditContext(repositories, selectedTransactionId),
-    ])
-      .then(([nextDetail, nextEditContext]) => {
+    loadInlineDetailData(selectedTransactionId)
+      .then((nextDetailData) => {
         if (cancelled) {
           return;
         }
 
-        setDetail(nextDetail);
-        setEditContext(nextEditContext);
-        setEditValues(nextEditContext.values);
-        setDetailError(null);
-        setEditErrors({});
-        setConfirmDelete(false);
+        applyInlineDetailData(nextDetailData);
       })
       .catch((reason: unknown) => {
         if (cancelled) {
@@ -259,7 +297,13 @@ export function HistoryScreen() {
     return () => {
       cancelled = true;
     };
-  }, [isFocused, repositories, selectedTransactionId, status]);
+  }, [
+    applyInlineDetailData,
+    isFocused,
+    loadInlineDetailData,
+    selectedTransactionId,
+    status,
+  ]);
 
   if (!historyState) {
     return (
@@ -284,6 +328,10 @@ export function HistoryScreen() {
       );
     }
   };
+
+  const activeHiddenFiltersCount =
+    (historyState.filters.monthKey ? 1 : 0) +
+    (historyState.filters.categoryId ? 1 : 0);
 
   const handleSaveEdit = async () => {
     if (
@@ -320,7 +368,7 @@ export function HistoryScreen() {
           historyState.filters.categoryId !== editValues.categoryId
             ? ''
             : historyState.filters.categoryId,
-        monthKey: result.monthKey,
+        monthKey: historyState.filters.monthKey ? result.monthKey : '',
         type:
           historyState.filters.type !== 'all' &&
           historyState.filters.type !== editValues.type
@@ -329,6 +377,8 @@ export function HistoryScreen() {
       });
 
       await loadScreen(nextFilters, selectedTransactionId);
+      const nextDetailData = await loadInlineDetailData(selectedTransactionId);
+      applyInlineDetailData(nextDetailData);
       setIsEditing(false);
     } catch (reason: unknown) {
       setDetailError(
@@ -386,8 +436,6 @@ export function HistoryScreen() {
       ) : null}
 
       <AppCard>
-        <Text style={styles.sectionTitle}>Filtry</Text>
-
         <FieldLabel label="Szukaj" />
         <AppInput
           onChangeText={setSearchDraft}
@@ -430,40 +478,62 @@ export function HistoryScreen() {
           ))}
         </View>
 
-        <FieldLabel label="Miesiąc" />
-        <View style={styles.chipGroup}>
-          {historyState.monthOptions.map((option) => (
-            <Chip
-              key={option.value}
-              active={historyState.filters.monthKey === option.value}
-              label={option.label}
-              onPress={() => {
-                void applyFilterPatch({ monthKey: option.value });
-              }}
-            />
-          ))}
-        </View>
+        <CollapsibleSection
+          defaultExpanded={false}
+          screenId="history"
+          sectionId="extra-filters"
+          summary="Miesiąc i kategoria"
+          title={`Filtry aktywne: ${activeHiddenFiltersCount}`}
+        >
+          {activeHiddenFiltersCount > 0 ? (
+            <View style={styles.inlineActions}>
+              <InlineButton
+                label="Wyczyść filtry"
+                onPress={() => {
+                  void applyFilterPatch({ categoryId: '', monthKey: '' });
+                }}
+                tone="muted"
+              />
+            </View>
+          ) : null}
 
-        <FieldLabel label="Kategoria" />
-        <View style={styles.chipGroup}>
-          <Chip
-            active={historyState.filters.categoryId === ''}
-            label="Wszystkie"
-            onPress={() => {
-              void applyFilterPatch({ categoryId: '' });
-            }}
-          />
-          {historyState.categoryOptions.map((category) => (
-            <Chip
-              key={category.id}
-              active={historyState.filters.categoryId === category.id}
-              label={category.name}
-              onPress={() => {
-                void applyFilterPatch({ categoryId: category.id });
-              }}
-            />
-          ))}
-        </View>
+          <View style={styles.expandedFilters}>
+            <FieldLabel label="Miesiąc" />
+            <View style={styles.chipGroup}>
+              {historyState.monthOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  active={historyState.filters.monthKey === option.value}
+                  label={option.label}
+                  onPress={() => {
+                    void applyFilterPatch({ monthKey: option.value });
+                  }}
+                />
+              ))}
+            </View>
+
+            <FieldLabel label="Kategoria" />
+            <View style={styles.chipGroup}>
+              <Chip
+                active={historyState.filters.categoryId === ''}
+                label="Wszystkie"
+                onPress={() => {
+                  void applyFilterPatch({ categoryId: '' });
+                }}
+              />
+              {historyState.categoryOptions.map((category) => (
+                <Chip
+                  key={category.id}
+                  active={historyState.filters.categoryId === category.id}
+                  label={category.name}
+                  onPress={() => {
+                    void applyFilterPatch({ categoryId: category.id });
+                  }}
+                />
+              ))}
+            </View>
+          </View>
+        </CollapsibleSection>
 
         <Text style={styles.helperText}>
           Wyniki: {historyState.totalCount} dla{' '}
@@ -486,8 +556,8 @@ export function HistoryScreen() {
         <AppCard>
           <Text style={styles.sectionTitle}>Brak wyników</Text>
           <Text style={styles.helperText}>
-            W tym zestawie filtrów nic nie pasuje. Zmień miesiąc, kategorię albo
-            wyczyść wyszukiwanie.
+            W tym zestawie filtrów nic nie pasuje. Zmień typ, rozwiń filtry
+            dodatkowe albo wyczyść wyszukiwanie.
           </Text>
         </AppCard>
       ) : null}
@@ -508,81 +578,101 @@ export function HistoryScreen() {
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListEmptyComponent={null}
-      ListFooterComponent={
-        detail ? (
-          <TransactionDetailCard
-            confirmDelete={confirmDelete}
-            detail={detail}
-            editContext={editContext}
-            editErrors={editErrors}
-            editValues={editValues}
-            isDeleting={isDeleting}
-            isEditing={isEditing}
-            isSaving={isSaving}
-            onCardLayout={(event) => {
-              detailCardOffsetYRef.current = event.nativeEvent.layout.y;
-            }}
-            onCancelEdit={() => {
-              setIsEditing(false);
-              setEditValues(editContext?.values ?? null);
-              setEditErrors({});
-              setConfirmDelete(false);
-            }}
-            onConfirmDelete={() => setConfirmDelete(true)}
-            onDelete={handleDelete}
-            onFieldFocus={createFocusHandler}
-            onFieldLayout={registerDetailField}
-            onFieldRef={registerInputRef}
-            onEditValueChange={(patch) => {
-              setEditValues((current) => {
-                if (!current || !editContext) {
-                  return current;
-                }
-
-                const nextValues = { ...current, ...patch };
-
-                if (patch.type && patch.type !== current.type) {
-                  const availableCategories =
-                    editContext.categoriesByType[patch.type];
-                  const hasCategory = availableCategories.some(
-                    (category) => category.id === nextValues.categoryId,
-                  );
-
-                  if (!hasCategory) {
-                    nextValues.categoryId = '';
-                  }
-                }
-
-                return nextValues;
-              });
-            }}
-            onSave={handleSaveEdit}
-            onStartEdit={() => {
-              setIsEditing(true);
-              setConfirmDelete(false);
-              setEditErrors({});
-            }}
-          />
-        ) : detailError ? (
-          <AppCard>
-            <Text style={styles.errorTitle}>Błąd szczegółu</Text>
-            <Text style={styles.errorText}>{detailError}</Text>
-          </AppCard>
-        ) : null
-      }
+      ListFooterComponent={null}
       ListHeaderComponent={header}
-      renderItem={({ item }) => (
-        <TransactionRow
-          active={selectedTransactionId === item.id}
-          item={item}
-          onPress={() => {
-            latestSelectedTransactionIdRef.current = item.id;
-            setSelectedTransactionId(item.id);
-            setIsEditing(false);
-            setConfirmDelete(false);
-          }}
-        />
-      )}
+      renderItem={({ item }) => {
+        const isActive = selectedTransactionId === item.id;
+
+        return (
+          <View
+            onLayout={(event) => {
+              if (isActive) {
+                detailCardOffsetYRef.current = event.nativeEvent.layout.y;
+              }
+            }}
+          >
+            <TransactionRow
+              active={isActive}
+              item={item}
+              onPress={() => {
+                if (isActive) {
+                  clearInlineDetail();
+                  return;
+                }
+
+                prepareInlineDetailSelection(item.id);
+              }}
+            />
+
+            {isActive ? (
+              detail && detail.id === item.id ? (
+                <TransactionDetailCard
+                  confirmDelete={confirmDelete}
+                  detail={detail}
+                  editContext={editContext}
+                  editErrors={editErrors}
+                  editValues={editValues}
+                  isDeleting={isDeleting}
+                  isEditing={isEditing}
+                  isSaving={isSaving}
+                  onCancelEdit={() => {
+                    setIsEditing(false);
+                    setEditValues(editContext?.values ?? null);
+                    setEditErrors({});
+                    setConfirmDelete(false);
+                  }}
+                  onClose={clearInlineDetail}
+                  onConfirmDelete={() => setConfirmDelete(true)}
+                  onDelete={handleDelete}
+                  onFieldFocus={createFocusHandler}
+                  onFieldLayout={registerDetailField}
+                  onFieldRef={registerInputRef}
+                  onEditValueChange={(patch) => {
+                    setEditValues((current) => {
+                      if (!current || !editContext) {
+                        return current;
+                      }
+
+                      const nextValues = { ...current, ...patch };
+
+                      if (patch.type && patch.type !== current.type) {
+                        const availableCategories =
+                          editContext.categoriesByType[patch.type];
+                        const hasCategory = availableCategories.some(
+                          (category) => category.id === nextValues.categoryId,
+                        );
+
+                        if (!hasCategory) {
+                          nextValues.categoryId = '';
+                        }
+                      }
+
+                      return nextValues;
+                    });
+                  }}
+                  onSave={handleSaveEdit}
+                  onStartEdit={() => {
+                    setIsEditing(true);
+                    setConfirmDelete(false);
+                    setEditErrors({});
+                  }}
+                />
+              ) : detailError ? (
+                <AppCard>
+                  <Text style={styles.errorTitle}>Błąd szczegółu</Text>
+                  <Text style={styles.errorText}>{detailError}</Text>
+                </AppCard>
+              ) : (
+                <AppCard>
+                  <Text style={styles.helperText}>
+                    Wczytuję szczegóły transakcji...
+                  </Text>
+                </AppCard>
+              )
+            ) : null}
+          </View>
+        );
+      }}
       showsVerticalScrollIndicator={false}
       style={styles.screen}
     />
@@ -598,6 +688,8 @@ function TransactionRow({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -652,9 +744,9 @@ function TransactionDetailCard({
   isSaving,
   isDeleting,
   confirmDelete,
-  onCardLayout,
   onStartEdit,
   onCancelEdit,
+  onClose,
   onEditValueChange,
   onSave,
   onConfirmDelete,
@@ -671,258 +763,279 @@ function TransactionDetailCard({
   isSaving: boolean;
   isDeleting: boolean;
   confirmDelete: boolean;
-  onCardLayout: (event: LayoutChangeEvent) => void;
   onStartEdit: () => void;
   onCancelEdit: () => void;
+  onClose: () => void;
   onEditValueChange: (patch: Partial<EditableTransactionValues>) => void;
   onSave: () => void;
   onConfirmDelete: () => void;
   onDelete: () => void;
   onFieldFocus: (fieldId: string) => () => void;
   onFieldLayout: (fieldId: string) => (event: LayoutChangeEvent) => void;
-  onFieldRef: (fieldId: string) => (input: React.ComponentRef<typeof AppInput> | null) => void;
+  onFieldRef: (
+    fieldId: string,
+  ) => (input: React.ComponentRef<typeof AppInput> | null) => void;
 }) {
+  const styles = useThemeStyles(createStyles);
   const [previewAttachmentUri, setPreviewAttachmentUri] = useState<
     string | null
   >(null);
   const previewAttachment = detail.attachments[0] ?? null;
 
   return (
-    <View onLayout={onCardLayout}>
+    <View style={styles.inlineDetailWrap}>
       <AppCard>
-      <Text style={styles.sectionTitle}>Szczegóły transakcji</Text>
-      <Text style={styles.detailTitle}>
-        {detail.description?.trim() ||
-          detail.categoryName ||
-          'Transakcja bez opisu'}
-      </Text>
-      <Text style={styles.helperText}>
-        {detail.type === 'income' ? 'Przychód' : 'Wydatek'} ·{' '}
-        {detail.occurredAt.slice(0, 10)} ·{' '}
-        {detail.categoryName ?? 'Bez kategorii'}
-      </Text>
+        <Text style={styles.sectionTitle}>Szczegóły transakcji</Text>
+        <Text style={styles.detailTitle}>
+          {detail.description?.trim() ||
+            detail.categoryName ||
+            'Transakcja bez opisu'}
+        </Text>
+        <Text style={styles.helperText}>
+          {detail.type === 'income' ? 'Przychód' : 'Wydatek'} ·{' '}
+          {detail.occurredAt.slice(0, 10)} ·{' '}
+          {detail.categoryName ?? 'Bez kategorii'}
+        </Text>
 
-      {!isEditing ? (
-        <>
-          <View style={styles.detailGrid}>
-            <DetailMetric
-              label="Kwota"
-              value={formatMinorUnits(detail.amountMinor, detail.currencyCode)}
-            />
-            <DetailMetric
-              label="Metoda"
-              value={getPaymentMethodLabel(detail.paymentMethod)}
-            />
-            <DetailMetric label="Źródło" value={detail.sourceMeta.label} />
-            <DetailMetric
-              label="Aktualizacja"
-              value={detail.updatedAt.slice(0, 10)}
-            />
-          </View>
-
-          {detail.note ? (
-            <View style={styles.noteBox}>
-              <Text style={styles.noteLabel}>Notatka</Text>
-              <Text style={styles.noteText}>{detail.note}</Text>
+        {!isEditing ? (
+          <>
+            <View style={styles.detailGrid}>
+              <DetailMetric
+                label="Kwota"
+                value={formatMinorUnits(
+                  detail.amountMinor,
+                  detail.currencyCode,
+                )}
+              />
+              <DetailMetric
+                label="Metoda"
+                value={getPaymentMethodLabel(detail.paymentMethod)}
+              />
+              <DetailMetric label="Źródło" value={detail.sourceMeta.label} />
+              <DetailMetric
+                label="Aktualizacja"
+                value={detail.updatedAt.slice(0, 10)}
+              />
             </View>
-          ) : null}
 
-          {previewAttachment ? (
-            <View style={styles.attachmentSection}>
-              <Text style={styles.noteLabel}>
-                {previewAttachment.kind === 'receipt_photo'
-                  ? 'Paragon'
-                  : 'Załącznik'}
-              </Text>
-              <Pressable
-                onPress={() => setPreviewAttachmentUri(previewAttachment.fileUri)}
-                style={styles.attachmentCard}
-              >
-                <Image
-                  resizeMode="cover"
-                  source={{ uri: previewAttachment.fileUri }}
-                  style={styles.attachmentPreview}
-                />
-                <View style={styles.attachmentCopy}>
-                  <Text style={styles.attachmentTitle}>
-                    {previewAttachment.kind === 'receipt_photo'
-                      ? 'Podejrzyj paragon'
-                      : 'Podejrzyj załącznik'}
-                  </Text>
-                  <Text style={styles.attachmentHint}>Tapnij, aby otworzyć</Text>
-                </View>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <View style={styles.inlineActions}>
-            <InlineButton label="Edytuj" onPress={onStartEdit} />
-            <InlineButton
-              label="Usuń"
-              onPress={onConfirmDelete}
-              tone="danger"
-            />
-          </View>
-
-          {confirmDelete ? (
-            <View style={styles.deleteBox}>
-              <Text style={styles.deleteTitle}>Usunąć transakcję?</Text>
-              <Text style={styles.helperText}>
-                Rekord zniknie z historii, a budżety i dashboard przeliczą się
-                na podstawie pozostałych danych.
-              </Text>
-              <View style={styles.inlineActions}>
-                <InlineButton
-                  label={isDeleting ? 'Usuwanie...' : 'Potwierdź'}
-                  onPress={onDelete}
-                  tone="danger"
-                />
-                <InlineButton
-                  label="Anuluj"
-                  onPress={onCancelEdit}
-                  tone="muted"
-                />
+            {detail.note ? (
+              <View style={styles.noteBox}>
+                <Text style={styles.noteLabel}>Notatka</Text>
+                <Text style={styles.noteText}>{detail.note}</Text>
               </View>
-            </View>
-          ) : null}
-        </>
-      ) : editContext && editValues ? (
-        <>
-          <FieldLabel label="Typ" required />
-          <View style={styles.chipGroup}>
-            {editTypeOptions.map((option) => (
-              <Chip
-                key={option.value}
-                active={editValues.type === option.value}
-                label={option.label}
-                onPress={() => onEditValueChange({ type: option.value })}
-              />
-            ))}
-          </View>
-
-          <FieldLabel label="Kwota" required />
-          <View onLayout={onFieldLayout('history_amount')}>
-            <AppInput
-              ref={onFieldRef('history_amount')}
-              keyboardType="decimal-pad"
-              onChangeText={(value) => onEditValueChange({ amountText: value })}
-              onFocus={onFieldFocus('history_amount')}
-              placeholder="Np. 34,90"
-              value={editValues.amountText}
-            />
-          </View>
-          {editErrors.amountText ? (
-            <Text style={styles.errorText}>{editErrors.amountText}</Text>
-          ) : null}
-
-          <FieldLabel label="Kategoria" required />
-          <View style={styles.chipGroup}>
-            {editContext.categoriesByType[editValues.type].map((category) => (
-              <Chip
-                key={category.id}
-                active={editValues.categoryId === category.id}
-                label={category.name}
-                onPress={() => onEditValueChange({ categoryId: category.id })}
-              />
-            ))}
-          </View>
-          {editErrors.categoryId ? (
-            <Text style={styles.errorText}>{editErrors.categoryId}</Text>
-          ) : null}
-
-          <FieldLabel label="Data" required />
-          <View onLayout={onFieldLayout('history_date')}>
-            <AppInput
-              ref={onFieldRef('history_date')}
-              onChangeText={(value) => onEditValueChange({ date: value })}
-              onFocus={onFieldFocus('history_date')}
-              placeholder="RRRR-MM-DD"
-              value={editValues.date}
-            />
-          </View>
-          {editErrors.date ? (
-            <Text style={styles.errorText}>{editErrors.date}</Text>
-          ) : null}
-
-          <FieldLabel label="Metoda płatności" />
-          <View style={styles.chipGroup}>
-            {paymentMethodOptions.map((option) => (
-              <Chip
-                key={option.value}
-                active={editValues.paymentMethod === option.value}
-                label={option.label}
-                onPress={() =>
-                  onEditValueChange({ paymentMethod: option.value })
-                }
-              />
-            ))}
-          </View>
-
-          <FieldLabel label="Opis" />
-          <View onLayout={onFieldLayout('history_description')}>
-            <AppInput
-              ref={onFieldRef('history_description')}
-              onChangeText={(value) =>
-                onEditValueChange({ description: value })
-              }
-              onFocus={onFieldFocus('history_description')}
-              placeholder="Np. Lidl albo przelew od klienta"
-              value={editValues.description}
-            />
-          </View>
-
-          <FieldLabel label="Notatka" />
-          <View onLayout={onFieldLayout('history_note')}>
-            <AppInput
-              ref={onFieldRef('history_note')}
-              multiline
-              onChangeText={(value) => onEditValueChange({ note: value })}
-              onFocus={onFieldFocus('history_note')}
-              placeholder="Opcjonalny kontekst do transakcji"
-              value={editValues.note}
-            />
-          </View>
-
-          <View style={styles.inlineActions}>
-            <InlineButton
-              label={isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
-              onPress={onSave}
-            />
-            <InlineButton label="Anuluj" onPress={onCancelEdit} tone="muted" />
-          </View>
-        </>
-      ) : (
-        <Text style={styles.helperText}>Przygotowuję formularz edycji...</Text>
-      )}
-
-      <Modal
-        animationType="fade"
-        onRequestClose={() => setPreviewAttachmentUri(null)}
-        transparent
-        visible={previewAttachmentUri !== null}
-      >
-        <Pressable
-          onPress={() => setPreviewAttachmentUri(null)}
-          style={styles.previewBackdrop}
-        >
-          <View style={styles.previewCard}>
-            {previewAttachmentUri ? (
-              <Image
-                resizeMode="contain"
-                source={{ uri: previewAttachmentUri }}
-                style={styles.previewImage}
-              />
             ) : null}
-            <Text style={styles.previewHint}>Tapnij tło, aby zamknąć</Text>
-          </View>
-        </Pressable>
-      </Modal>
+
+            {previewAttachment ? (
+              <View style={styles.attachmentSection}>
+                <Text style={styles.noteLabel}>
+                  {previewAttachment.kind === 'receipt_photo'
+                    ? 'Paragon'
+                    : 'Załącznik'}
+                </Text>
+                <Pressable
+                  onPress={() =>
+                    setPreviewAttachmentUri(previewAttachment.fileUri)
+                  }
+                  style={styles.attachmentCard}
+                >
+                  <Image
+                    resizeMode="cover"
+                    source={{ uri: previewAttachment.fileUri }}
+                    style={styles.attachmentPreview}
+                  />
+                  <View style={styles.attachmentCopy}>
+                    <Text style={styles.attachmentTitle}>
+                      {previewAttachment.kind === 'receipt_photo'
+                        ? 'Podejrzyj paragon'
+                        : 'Podejrzyj załącznik'}
+                    </Text>
+                    <Text style={styles.attachmentHint}>
+                      Tapnij, aby otworzyć
+                    </Text>
+                  </View>
+                </Pressable>
+              </View>
+            ) : null}
+
+            <View style={styles.inlineActions}>
+              <InlineButton label="Edytuj" onPress={onStartEdit} />
+              <InlineButton label="Zwiń" onPress={onClose} tone="muted" />
+              <InlineButton
+                label="Usuń"
+                onPress={onConfirmDelete}
+                tone="danger"
+              />
+            </View>
+
+            {confirmDelete ? (
+              <View style={styles.deleteBox}>
+                <Text style={styles.deleteTitle}>Usunąć transakcję?</Text>
+                <Text style={styles.helperText}>
+                  Rekord zniknie z historii, a budżety i dashboard przeliczą się
+                  na podstawie pozostałych danych.
+                </Text>
+                <View style={styles.inlineActions}>
+                  <InlineButton
+                    label={isDeleting ? 'Usuwanie...' : 'Potwierdź'}
+                    onPress={onDelete}
+                    tone="danger"
+                  />
+                  <InlineButton
+                    label="Anuluj"
+                    onPress={onCancelEdit}
+                    tone="muted"
+                  />
+                </View>
+              </View>
+            ) : null}
+          </>
+        ) : editContext && editValues ? (
+          <>
+            <FieldLabel label="Typ" required />
+            <View style={styles.chipGroup}>
+              {editTypeOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  active={editValues.type === option.value}
+                  label={option.label}
+                  onPress={() => onEditValueChange({ type: option.value })}
+                />
+              ))}
+            </View>
+
+            <FieldLabel label="Kwota" required />
+            <View onLayout={onFieldLayout('history_amount')}>
+              <AppInput
+                ref={onFieldRef('history_amount')}
+                keyboardType="decimal-pad"
+                onChangeText={(value) =>
+                  onEditValueChange({ amountText: value })
+                }
+                onFocus={onFieldFocus('history_amount')}
+                placeholder="Np. 34,90"
+                value={editValues.amountText}
+              />
+            </View>
+            {editErrors.amountText ? (
+              <Text style={styles.errorText}>{editErrors.amountText}</Text>
+            ) : null}
+
+            <FieldLabel label="Kategoria" required />
+            <View style={styles.chipGroup}>
+              {editContext.categoriesByType[editValues.type].map((category) => (
+                <Chip
+                  key={category.id}
+                  active={editValues.categoryId === category.id}
+                  label={category.name}
+                  onPress={() => onEditValueChange({ categoryId: category.id })}
+                />
+              ))}
+            </View>
+            {editErrors.categoryId ? (
+              <Text style={styles.errorText}>{editErrors.categoryId}</Text>
+            ) : null}
+
+            <FieldLabel label="Data" required />
+            <View onLayout={onFieldLayout('history_date')}>
+              <AppInput
+                ref={onFieldRef('history_date')}
+                onChangeText={(value) => onEditValueChange({ date: value })}
+                onFocus={onFieldFocus('history_date')}
+                placeholder="RRRR-MM-DD"
+                value={editValues.date}
+              />
+            </View>
+            {editErrors.date ? (
+              <Text style={styles.errorText}>{editErrors.date}</Text>
+            ) : null}
+
+            <FieldLabel label="Metoda płatności" />
+            <View style={styles.chipGroup}>
+              {paymentMethodOptions.map((option) => (
+                <Chip
+                  key={option.value}
+                  active={editValues.paymentMethod === option.value}
+                  label={option.label}
+                  onPress={() =>
+                    onEditValueChange({ paymentMethod: option.value })
+                  }
+                />
+              ))}
+            </View>
+
+            <FieldLabel label="Opis" />
+            <View onLayout={onFieldLayout('history_description')}>
+              <AppInput
+                ref={onFieldRef('history_description')}
+                onChangeText={(value) =>
+                  onEditValueChange({ description: value })
+                }
+                onFocus={onFieldFocus('history_description')}
+                placeholder="Np. Lidl albo przelew od klienta"
+                value={editValues.description}
+              />
+            </View>
+
+            <FieldLabel label="Notatka" />
+            <View onLayout={onFieldLayout('history_note')}>
+              <AppInput
+                ref={onFieldRef('history_note')}
+                multiline
+                onChangeText={(value) => onEditValueChange({ note: value })}
+                onFocus={onFieldFocus('history_note')}
+                placeholder="Opcjonalny kontekst do transakcji"
+                value={editValues.note}
+              />
+            </View>
+
+            <View style={styles.inlineActions}>
+              <InlineButton
+                label={isSaving ? 'Zapisywanie...' : 'Zapisz zmiany'}
+                onPress={onSave}
+              />
+              <InlineButton
+                label="Anuluj"
+                onPress={onCancelEdit}
+                tone="muted"
+              />
+            </View>
+          </>
+        ) : (
+          <Text style={styles.helperText}>
+            Przygotowuję formularz edycji...
+          </Text>
+        )}
+
+        <Modal
+          animationType="fade"
+          onRequestClose={() => setPreviewAttachmentUri(null)}
+          transparent
+          visible={previewAttachmentUri !== null}
+        >
+          <Pressable
+            onPress={() => setPreviewAttachmentUri(null)}
+            style={styles.previewBackdrop}
+          >
+            <View style={styles.previewCard}>
+              {previewAttachmentUri ? (
+                <Image
+                  resizeMode="contain"
+                  source={{ uri: previewAttachmentUri }}
+                  style={styles.previewImage}
+                />
+              ) : null}
+              <Text style={styles.previewHint}>Tapnij tło, aby zamknąć</Text>
+            </View>
+          </Pressable>
+        </Modal>
       </AppCard>
     </View>
   );
 }
 
 function DetailMetric({ label, value }: { label: string; value: string }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -938,6 +1051,8 @@ function FieldLabel({
   label: string;
   required?: boolean;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Text style={styles.fieldLabel}>
       {label}
@@ -955,6 +1070,8 @@ function Chip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -976,6 +1093,8 @@ function InlineButton({
   onPress: () => void;
   tone?: 'default' | 'muted' | 'danger';
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -1005,6 +1124,8 @@ function Badge({
   label: string;
   tone: 'default' | 'positive' | 'muted';
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View
       style={[
@@ -1037,7 +1158,6 @@ function getPaymentMethodLabel(
 function resolveSelectedTransactionId(
   items: HistoryTransactionItem[],
   preferredSelectionId?: string | null,
-  currentSelectionId?: string | null,
 ) {
   if (
     preferredSelectionId &&
@@ -1046,319 +1166,320 @@ function resolveSelectedTransactionId(
     return preferredSelectionId;
   }
 
-  if (
-    currentSelectionId &&
-    items.some((item) => item.id === currentSelectionId)
-  ) {
-    return currentSelectionId;
-  }
-
-  return items[0]?.id ?? null;
+  return null;
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  badge: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  badgeLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  badgeLabelMuted: {
-    color: colors.textMuted,
-  },
-  badgeLabelPositive: {
-    color: colors.primary,
-  },
-  badgeMuted: {
-    backgroundColor: colors.background,
-  },
-  badgePositive: {
-    backgroundColor: colors.primarySoft,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  attachmentCard: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.md,
-    marginTop: spacing.sm,
-    padding: spacing.md,
-  },
-  attachmentCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  attachmentHint: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-  },
-  attachmentPreview: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    height: 72,
-    width: 72,
-  },
-  attachmentSection: {
-    marginTop: spacing.md,
-  },
-  attachmentTitle: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  chip: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  chipInactive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  chipLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  chipLabelActive: {
-    color: colors.surface,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  deleteBox: {
-    backgroundColor: '#FFF2EF',
-    borderColor: '#F0C7C2',
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  deleteTitle: {
-    color: colors.danger,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 22,
-  },
-  detailGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  detailTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  errorText: {
-    color: colors.danger,
-    fontSize: typography.caption,
-  },
-  errorTitle: {
-    color: colors.danger,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  fieldLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    marginTop: spacing.xs,
-  },
-  headerContent: {
-    gap: spacing.lg,
-  },
-  helperText: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 20,
-  },
-  hero: {
-    gap: spacing.md,
-  },
-  heroCopy: {
-    gap: spacing.sm,
-  },
-  inlineActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  inlineButton: {
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  inlineButtonDanger: {
-    backgroundColor: '#FFF2EF',
-  },
-  inlineButtonLabel: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  inlineButtonLabelDanger: {
-    color: colors.danger,
-  },
-  inlineButtonLabelMuted: {
-    color: colors.textMuted,
-  },
-  inlineButtonMuted: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  loadingState: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  metricCard: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexGrow: 1,
-    gap: spacing.xs,
-    minWidth: 132,
-    padding: spacing.md,
-  },
-  metricLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  noteBox: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  noteLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  noteText: {
-    color: colors.text,
-    fontSize: typography.body,
-    lineHeight: 22,
-  },
-  previewBackdrop: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(11, 18, 32, 0.88)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.lg,
-  },
-  previewCard: {
-    alignItems: 'center',
-    gap: spacing.md,
-    width: '100%',
-  },
-  previewHint: {
-    color: colors.surface,
-    fontSize: typography.caption,
-  },
-  previewImage: {
-    borderRadius: radius.lg,
-    height: '80%',
-    maxHeight: 640,
-    width: '100%',
-  },
-  rowAmount: {
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  rowAmountNegative: {
-    color: colors.text,
-  },
-  rowAmountPositive: {
-    color: colors.primary,
-  },
-  rowCard: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.lg,
-  },
-  rowCardActive: {
-    borderColor: colors.primary,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-  },
-  rowCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  rowMeta: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-  },
-  rowTitle: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  rowTop: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '800',
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    screen: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    badge: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    badgeLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    badgeLabelMuted: {
+      color: colors.textMuted,
+    },
+    badgeLabelPositive: {
+      color: colors.primary,
+    },
+    badgeMuted: {
+      backgroundColor: colors.background,
+    },
+    badgePositive: {
+      backgroundColor: colors.primarySoft,
+    },
+    badgeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    attachmentCard: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: spacing.md,
+      marginTop: spacing.sm,
+      padding: spacing.md,
+    },
+    attachmentCopy: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    attachmentHint: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+    },
+    attachmentPreview: {
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      height: 72,
+      width: 72,
+    },
+    attachmentSection: {
+      marginTop: spacing.md,
+    },
+    attachmentTitle: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    chip: {
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipGroup: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    chipInactive: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    chipLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    chipLabelActive: {
+      color: colors.surface,
+    },
+    content: {
+      gap: spacing.lg,
+      padding: spacing.lg,
+    },
+    deleteBox: {
+      backgroundColor: colors.dangerSoft,
+      borderColor: colors.dangerBorder,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      gap: spacing.sm,
+      padding: spacing.lg,
+    },
+    deleteTitle: {
+      color: colors.danger,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 22,
+    },
+    detailGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    detailTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    errorText: {
+      color: colors.danger,
+      fontSize: typography.caption,
+    },
+    errorTitle: {
+      color: colors.danger,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    fieldLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '700',
+      marginTop: spacing.xs,
+    },
+    expandedFilters: {
+      gap: spacing.sm,
+    },
+    headerContent: {
+      gap: spacing.lg,
+    },
+    helperText: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      lineHeight: 20,
+    },
+    hero: {
+      gap: spacing.md,
+    },
+    heroCopy: {
+      gap: spacing.sm,
+    },
+    inlineActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    inlineButton: {
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    inlineButtonDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    inlineButtonLabel: {
+      color: colors.primary,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    inlineButtonLabelDanger: {
+      color: colors.danger,
+    },
+    inlineButtonLabelMuted: {
+      color: colors.textMuted,
+    },
+    inlineButtonMuted: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    inlineDetailWrap: {
+      marginTop: spacing.sm,
+    },
+    loadingState: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    loadingText: {
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    metricCard: {
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      flexGrow: 1,
+      gap: spacing.xs,
+      minWidth: 132,
+      padding: spacing.md,
+    },
+    metricLabel: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    metricValue: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    noteBox: {
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      gap: spacing.xs,
+      padding: spacing.md,
+    },
+    noteLabel: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    noteText: {
+      color: colors.text,
+      fontSize: typography.body,
+      lineHeight: 22,
+    },
+    previewBackdrop: {
+      alignItems: 'center',
+      backgroundColor: colors.modalBackdrop,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.lg,
+    },
+    previewCard: {
+      alignItems: 'center',
+      gap: spacing.md,
+      width: '100%',
+    },
+    previewHint: {
+      color: colors.surface,
+      fontSize: typography.caption,
+    },
+    previewImage: {
+      borderRadius: radius.lg,
+      height: '80%',
+      maxHeight: 640,
+      width: '100%',
+    },
+    rowAmount: {
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    rowAmountNegative: {
+      color: colors.text,
+    },
+    rowAmountPositive: {
+      color: colors.primary,
+    },
+    rowCard: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      gap: spacing.sm,
+      padding: spacing.lg,
+    },
+    rowCardActive: {
+      borderColor: colors.primary,
+      shadowColor: colors.primary,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.08,
+      shadowRadius: 16,
+    },
+    rowCopy: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    rowMeta: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+    },
+    rowTitle: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    rowTop: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: spacing.md,
+      justifyContent: 'space-between',
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    title: {
+      color: colors.text,
+      fontSize: typography.title,
+      fontWeight: '800',
+    },
+  });
+}

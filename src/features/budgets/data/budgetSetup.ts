@@ -74,6 +74,14 @@ function getUsageRatio(limitMinor: number | null, spentMinor: number) {
   return spentMinor / limitMinor;
 }
 
+function normalizeCategoryLimit(limitMinor: number | null | undefined) {
+  if (limitMinor === null || limitMinor === undefined || limitMinor <= 0) {
+    return null;
+  }
+
+  return limitMinor;
+}
+
 function getUsagePercent(limitMinor: number | null, spentMinor: number) {
   const usageRatio = getUsageRatio(limitMinor, spentMinor);
 
@@ -230,7 +238,7 @@ export async function loadBudgetSetup(
       : (expenseByCategoryId.get(category.id) ?? 0);
     const budgetLimitMinor = isIncome
       ? null
-      : (categoryBudget?.limitAmountMinor ?? null);
+      : normalizeCategoryLimit(categoryBudget?.limitAmountMinor);
     const remainingMinor =
       budgetLimitMinor === null ? null : budgetLimitMinor - spentMinor;
     const status = isIncome

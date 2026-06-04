@@ -4,6 +4,7 @@ import {
   getDatabase,
 } from '@/src/storage/sqlite/database';
 import { createAttachmentsRepository } from '@/src/storage/sqlite/repositories/AttachmentsRepository';
+import { createBackupRepository } from '@/src/storage/sqlite/repositories/BackupRepository';
 import { createBudgetsRepository } from '@/src/storage/sqlite/repositories/BudgetsRepository';
 import { createCategoriesRepository } from '@/src/storage/sqlite/repositories/CategoriesRepository';
 import { createDashboardRepository } from '@/src/storage/sqlite/repositories/DashboardRepository';
@@ -17,6 +18,7 @@ export async function createStorageServices() {
   return {
     repositories: {
       attachments: createAttachmentsRepository(context),
+      backup: createBackupRepository(context),
       budgets: createBudgetsRepository(context),
       categories: createCategoriesRepository(context),
       dashboard: createDashboardRepository(context),
@@ -39,6 +41,12 @@ export function createBootstrapErrorRepositories(): AppRepositories {
       create: notReady,
       linkToTransaction: notReady,
       listByTransactionId: notReady,
+    },
+    backup: {
+      exportBackup: notReady,
+      importBackup: notReady,
+      saveBackupToFiles: notReady,
+      shareBackup: notReady,
     },
     budgets: {
       clearMonthlyBudget: notReady,

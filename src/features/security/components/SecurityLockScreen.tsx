@@ -9,7 +9,13 @@ import {
 } from 'react-native';
 
 import { normalizePin } from '@/src/features/security/data/security';
-import { colors, radius, spacing, typography } from '@/src/shared/theme';
+import {
+  radius,
+  spacing,
+  typography,
+  type AppThemeColors,
+} from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import { AppButton, AppCard } from '@/src/shared/ui';
 
 type SecurityLockScreenProps = {
@@ -29,6 +35,8 @@ export function SecurityLockScreen({
   onUnlockWithBiometrics,
   onUnlockWithPin,
 }: SecurityLockScreenProps) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const [pin, setPin] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const inputRef = useRef<TextInput | null>(null);
@@ -155,97 +163,99 @@ export function SecurityLockScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  overlay: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(14, 47, 47, 0.96)',
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '700',
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 22,
-  },
-  biometricSection: {
-    gap: spacing.sm,
-  },
-  dividerText: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    textAlign: 'center',
-  },
-  form: {
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-  pinFieldPressable: {
-    alignSelf: 'stretch',
-  },
-  pinSlots: {
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  pinSlot: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flex: 1,
-    height: 68,
-    justifyContent: 'center',
-    position: 'relative',
-  },
-  pinSlotLine: {
-    backgroundColor: colors.textMuted,
-    borderRadius: radius.pill,
-    height: 3,
-    width: 18,
-  },
-  pinSlotLineFilled: {
-    backgroundColor: colors.primary,
-    opacity: 0,
-  },
-  pinDot: {
-    backgroundColor: colors.text,
-    borderRadius: radius.pill,
-    height: 12,
-    position: 'absolute',
-    width: 12,
-  },
-  hiddenInput: {
-    ...StyleSheet.absoluteFill,
-    color: 'transparent',
-    opacity: 0.02,
-    position: 'absolute',
-  },
-  label: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  errorText: {
-    color: colors.danger,
-    fontWeight: '600',
-  },
-  loadingRow: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  loadingText: {
-    color: colors.textMuted,
-  },
-  actions: {
-    gap: spacing.md,
-    marginTop: spacing.sm,
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    overlay: {
+      alignItems: 'center',
+      backgroundColor: colors.lockOverlay,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    title: {
+      color: colors.text,
+      fontSize: typography.title,
+      fontWeight: '700',
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 22,
+    },
+    biometricSection: {
+      gap: spacing.sm,
+    },
+    dividerText: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      textAlign: 'center',
+    },
+    form: {
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+    pinFieldPressable: {
+      alignSelf: 'stretch',
+    },
+    pinSlots: {
+      flexDirection: 'row',
+      gap: spacing.md,
+      justifyContent: 'space-between',
+    },
+    pinSlot: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      flex: 1,
+      height: 68,
+      justifyContent: 'center',
+      position: 'relative',
+    },
+    pinSlotLine: {
+      backgroundColor: colors.textMuted,
+      borderRadius: radius.pill,
+      height: 3,
+      width: 18,
+    },
+    pinSlotLineFilled: {
+      backgroundColor: colors.primary,
+      opacity: 0,
+    },
+    pinDot: {
+      backgroundColor: colors.text,
+      borderRadius: radius.pill,
+      height: 12,
+      position: 'absolute',
+      width: 12,
+    },
+    hiddenInput: {
+      ...StyleSheet.absoluteFill,
+      color: 'transparent',
+      opacity: 0.02,
+      position: 'absolute',
+    },
+    label: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    errorText: {
+      color: colors.danger,
+      fontWeight: '600',
+    },
+    loadingRow: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    loadingText: {
+      color: colors.textMuted,
+    },
+    actions: {
+      gap: spacing.md,
+      marginTop: spacing.sm,
+    },
+  });
+}

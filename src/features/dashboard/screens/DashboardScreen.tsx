@@ -11,12 +11,19 @@ import {
 } from '@/src/features/dashboard/data/dashboard';
 import type { RootTabParamList } from '@/src/navigation/AppNavigator';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
-import { colors, radius, spacing, typography } from '@/src/shared/theme';
+import {
+  radius,
+  spacing,
+  typography,
+  type AppThemeColors,
+} from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import { AppButton, AppCard, useScreenContentInsets } from '@/src/shared/ui';
 import { getCurrentMonthKey, shiftMonthKey } from '@/src/shared/utils/date';
 import { formatMinorUnits } from '@/src/shared/utils/money';
 
 export function DashboardScreen() {
+  const styles = useThemeStyles(createStyles);
   const { repositories, status, error } = useAppServices();
   const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const navigation = useNavigation<BottomTabNavigationProp<RootTabParamList>>();
@@ -351,6 +358,8 @@ function MonthButton({
   label: string;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable onPress={onPress} style={styles.monthButton}>
       <Text style={styles.monthButtonLabel}>{label}</Text>
@@ -367,6 +376,8 @@ function MetricCard({
   value: string;
   tone: 'default' | 'positive' | 'danger';
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View
       style={[
@@ -396,6 +407,8 @@ function CategoryBudgetRow({
   item: DashboardCategoryHighlight;
   currencyCode: string;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const progress = Math.max(0, Math.min(item.usageRatio, 1));
   const progressWidth: `${number}%` = `${progress * 100}%`;
 
@@ -479,243 +492,245 @@ function CategoryBudgetRow({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  hero: {
-    gap: spacing.md,
-  },
-  heroHeader: {
-    gap: spacing.md,
-  },
-  heroCopy: {
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '800',
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 24,
-  },
-  monthSwitcher: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.md,
-  },
-  monthButton: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    height: 42,
-    justifyContent: 'center',
-    width: 42,
-  },
-  monthButtonLabel: {
-    color: colors.text,
-    fontSize: 22,
-    fontWeight: '700',
-    lineHeight: 24,
-  },
-  monthLabelBox: {
-    alignItems: 'center',
-    flex: 1,
-    gap: spacing.xs,
-  },
-  monthLabel: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-    textTransform: 'capitalize',
-  },
-  monthKey: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-  },
-  currentMonthButton: {
-    alignSelf: 'flex-start',
-  },
-  currentMonthButtonLabel: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  helperText: {
-    color: colors.textMuted,
-    lineHeight: 22,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.md,
-  },
-  metricCard: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    gap: spacing.xs,
-    minWidth: '47%',
-    padding: spacing.md,
-  },
-  metricCardPositive: {
-    backgroundColor: colors.primarySoft,
-  },
-  metricCardDanger: {
-    backgroundColor: '#F6DDDA',
-  },
-  metricLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '800',
-    lineHeight: 22,
-  },
-  metricValuePositive: {
-    color: colors.primary,
-  },
-  metricValueDanger: {
-    color: colors.danger,
-  },
-  alertTitle: {
-    color: colors.danger,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  alertText: {
-    color: colors.text,
-    lineHeight: 22,
-  },
-  emptyCategoryState: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  categoryList: {
-    gap: spacing.md,
-  },
-  categoryCard: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    gap: spacing.sm,
-    padding: spacing.md,
-  },
-  categoryHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  categoryIdentity: {
-    alignItems: 'center',
-    flex: 1,
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  categoryIconWrap: {
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.pill,
-    height: 34,
-    justifyContent: 'center',
-    width: 34,
-  },
-  categoryCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  categoryName: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  categoryMeta: {
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  statusBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  statusBadgeNeutral: {
-    backgroundColor: colors.surface,
-  },
-  statusBadgeWarning: {
-    backgroundColor: '#F7E7C7',
-  },
-  statusBadgeDanger: {
-    backgroundColor: '#F6DDDA',
-  },
-  statusBadgeLabel: {
-    color: colors.text,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-  statusBadgeLabelWarning: {
-    color: '#9A6400',
-  },
-  statusBadgeLabelDanger: {
-    color: colors.danger,
-  },
-  progressTrack: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    height: 10,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    borderRadius: radius.pill,
-    height: '100%',
-  },
-  progressBarPositive: {
-    backgroundColor: colors.primary,
-  },
-  progressBarWarning: {
-    backgroundColor: '#C98B00',
-  },
-  progressBarDanger: {
-    backgroundColor: colors.danger,
-  },
-  footnoteText: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 20,
-  },
-  savingsProgressHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  savingsProgressValue: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  loadingState: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  loadingText: {
-    color: colors.text,
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    screen: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    content: {
+      gap: spacing.lg,
+      padding: spacing.lg,
+    },
+    hero: {
+      gap: spacing.md,
+    },
+    heroHeader: {
+      gap: spacing.md,
+    },
+    heroCopy: {
+      gap: spacing.sm,
+    },
+    title: {
+      color: colors.text,
+      fontSize: typography.title,
+      fontWeight: '800',
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 24,
+    },
+    monthSwitcher: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: spacing.md,
+    },
+    monthButton: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      height: 42,
+      justifyContent: 'center',
+      width: 42,
+    },
+    monthButtonLabel: {
+      color: colors.text,
+      fontSize: 22,
+      fontWeight: '700',
+      lineHeight: 24,
+    },
+    monthLabelBox: {
+      alignItems: 'center',
+      flex: 1,
+      gap: spacing.xs,
+    },
+    monthLabel: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+      textTransform: 'capitalize',
+    },
+    monthKey: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+    },
+    currentMonthButton: {
+      alignSelf: 'flex-start',
+    },
+    currentMonthButtonLabel: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    helperText: {
+      color: colors.textMuted,
+      lineHeight: 22,
+    },
+    metricsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.md,
+    },
+    metricCard: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.md,
+      gap: spacing.xs,
+      minWidth: '47%',
+      padding: spacing.md,
+    },
+    metricCardPositive: {
+      backgroundColor: colors.primarySoft,
+    },
+    metricCardDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    metricLabel: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+    },
+    metricValue: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '800',
+      lineHeight: 22,
+    },
+    metricValuePositive: {
+      color: colors.primary,
+    },
+    metricValueDanger: {
+      color: colors.danger,
+    },
+    alertTitle: {
+      color: colors.danger,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    alertText: {
+      color: colors.text,
+      lineHeight: 22,
+    },
+    emptyCategoryState: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.md,
+      padding: spacing.md,
+    },
+    categoryList: {
+      gap: spacing.md,
+    },
+    categoryCard: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.md,
+      gap: spacing.sm,
+      padding: spacing.md,
+    },
+    categoryHeader: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: spacing.md,
+      justifyContent: 'space-between',
+    },
+    categoryIdentity: {
+      alignItems: 'center',
+      flex: 1,
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    categoryIconWrap: {
+      alignItems: 'center',
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.pill,
+      height: 34,
+      justifyContent: 'center',
+      width: 34,
+    },
+    categoryCopy: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    categoryName: {
+      color: colors.text,
+      fontWeight: '700',
+    },
+    categoryMeta: {
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    statusBadge: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.xs,
+    },
+    statusBadgeNeutral: {
+      backgroundColor: colors.surface,
+    },
+    statusBadgeWarning: {
+      backgroundColor: colors.warningSoft,
+    },
+    statusBadgeDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    statusBadgeLabel: {
+      color: colors.text,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    statusBadgeLabelWarning: {
+      color: colors.warning,
+    },
+    statusBadgeLabelDanger: {
+      color: colors.danger,
+    },
+    progressTrack: {
+      backgroundColor: colors.surface,
+      borderRadius: radius.pill,
+      height: 10,
+      overflow: 'hidden',
+    },
+    progressBar: {
+      borderRadius: radius.pill,
+      height: '100%',
+    },
+    progressBarPositive: {
+      backgroundColor: colors.success,
+    },
+    progressBarWarning: {
+      backgroundColor: colors.warning,
+    },
+    progressBarDanger: {
+      backgroundColor: colors.danger,
+    },
+    footnoteText: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      lineHeight: 20,
+    },
+    savingsProgressHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    savingsProgressValue: {
+      color: colors.text,
+      fontWeight: '700',
+    },
+    loadingState: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    loadingText: {
+      color: colors.text,
+    },
+  });
+}

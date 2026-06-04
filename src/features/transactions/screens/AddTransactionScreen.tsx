@@ -36,7 +36,13 @@ import {
   type OcrImportResult,
 } from '@/src/features/transactions/data/ocrImport';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
-import { colors, radius, spacing, typography } from '@/src/shared/theme';
+import {
+  radius,
+  spacing,
+  typography,
+  type AppThemeColors,
+} from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import {
   AppButton,
   AppCard,
@@ -65,6 +71,8 @@ const transactionTypeOptions: { value: TransactionType; label: string }[] = [
 type EntryMode = 'manual' | 'ocr';
 
 export function AddTransactionScreen() {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { repositories, status } = useAppServices();
   const isFocused = useIsFocused();
   const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
@@ -323,7 +331,10 @@ export function AddTransactionScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
+          {
+            paddingBottom: contentBottomPadding,
+            paddingTop: contentTopPadding,
+          },
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -811,6 +822,8 @@ function Chip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -834,6 +847,8 @@ function ModeOptionCard({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -869,6 +884,8 @@ function FieldLabel({
   label: string;
   required?: boolean;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Text style={styles.fieldLabel}>
       {label}
@@ -886,6 +903,8 @@ function ReviewFieldCard({
   onChangeText: (value: string) => void;
   keyboardType?: 'default' | 'decimal-pad';
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View
       style={[
@@ -917,6 +936,8 @@ function StatusBadge({
   label: string;
   tone?: 'default' | 'positive' | 'muted';
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View
       style={[
@@ -938,270 +959,272 @@ function StatusBadge({
   );
 }
 
-const styles = StyleSheet.create({
-  badgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  chip: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipGroup: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  chipInactive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  chipLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  chipLabelActive: {
-    color: colors.surface,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 22,
-  },
-  detailsSection: {
-    gap: spacing.sm,
-  },
-  detailsToggle: {
-    alignSelf: 'flex-start',
-  },
-  detailsToggleText: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  attentionText: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    lineHeight: 20,
-  },
-  errorText: {
-    color: colors.danger,
-  },
-  fieldLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  footnoteText: {
-    color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 18,
-  },
-  helperText: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 20,
-  },
-  hero: {
-    gap: spacing.sm,
-  },
-  importActions: {
-    gap: spacing.sm,
-  },
-  importOverlay: {
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingBottom: spacing.md,
-  },
-  inlineActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  loadingState: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  loadingText: {
-    color: colors.textMuted,
-    textAlign: 'center',
-  },
-  modeChoiceRow: {
-    gap: spacing.sm,
-  },
-  modeOptionCard: {
-    borderRadius: radius.lg,
-    borderWidth: 1,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  modeOptionCardActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  modeOptionCardInactive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  modeOptionDescription: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 18,
-  },
-  modeOptionDescriptionActive: {
-    color: colors.surfaceMuted,
-  },
-  modeOptionTitle: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  modeOptionTitleActive: {
-    color: colors.surface,
-  },
-  previewImage: {
-    borderRadius: radius.md,
-    height: 180,
-    resizeMode: 'cover',
-    width: '100%',
-  },
-  quickRepeatSection: {
-    gap: spacing.sm,
-  },
-  rawTextBox: {
-    backgroundColor: colors.background,
-    borderRadius: radius.md,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  rawTextSection: {
-    gap: spacing.sm,
-  },
-  rawTextTitle: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  rawTextValue: {
-    color: colors.text,
-    fontSize: typography.caption,
-    lineHeight: 18,
-  },
-  reviewFieldCard: {
-    backgroundColor: colors.background,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing.sm,
-    padding: spacing.md,
-  },
-  reviewFieldCardAttention: {
-    backgroundColor: '#FFF7ED',
-    borderColor: '#D97706',
-  },
-  reviewFieldHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    justifyContent: 'space-between',
-  },
-  reviewFieldHelper: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    lineHeight: 18,
-  },
-  reviewFieldLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  reviewFieldList: {
-    gap: spacing.sm,
-  },
-  screen: {
-    backgroundColor: colors.background,
-  },
-  secondaryButton: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  secondaryButtonLabelMuted: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  secondaryButtonMuted: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  statusBadge: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  statusBadgeLabel: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  statusBadgeLabelMuted: {
-    color: colors.textMuted,
-  },
-  statusBadgeLabelPositive: {
-    color: colors.primary,
-  },
-  statusBadgeMuted: {
-    backgroundColor: colors.background,
-  },
-  statusBadgePositive: {
-    backgroundColor: colors.primarySoft,
-  },
-  successText: {
-    color: colors.primary,
-    fontSize: typography.caption,
-    fontWeight: '700',
-    marginTop: spacing.sm,
-  },
-  summaryItem: {
-    color: colors.text,
-    fontSize: typography.caption,
-    lineHeight: 20,
-  },
-  summaryList: {
-    gap: spacing.xs,
-  },
-  summaryRow: {
-    gap: spacing.xs,
-  },
-  summaryText: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '800',
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    badgeRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    chip: {
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipGroup: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    chipInactive: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    chipLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    chipLabelActive: {
+      color: colors.surface,
+    },
+    content: {
+      gap: spacing.lg,
+      padding: spacing.lg,
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 22,
+    },
+    detailsSection: {
+      gap: spacing.sm,
+    },
+    detailsToggle: {
+      alignSelf: 'flex-start',
+    },
+    detailsToggleText: {
+      color: colors.primary,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    attentionText: {
+      color: colors.primary,
+      fontSize: typography.caption,
+      fontWeight: '700',
+      lineHeight: 20,
+    },
+    errorText: {
+      color: colors.danger,
+    },
+    fieldLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    footnoteText: {
+      color: colors.textMuted,
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    helperText: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      lineHeight: 20,
+    },
+    hero: {
+      gap: spacing.sm,
+    },
+    importActions: {
+      gap: spacing.sm,
+    },
+    importOverlay: {
+      alignItems: 'center',
+      gap: spacing.sm,
+      paddingBottom: spacing.md,
+    },
+    inlineActions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    loadingState: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    loadingText: {
+      color: colors.textMuted,
+      textAlign: 'center',
+    },
+    modeChoiceRow: {
+      gap: spacing.sm,
+    },
+    modeOptionCard: {
+      borderRadius: radius.lg,
+      borderWidth: 1,
+      gap: spacing.xs,
+      padding: spacing.md,
+    },
+    modeOptionCardActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    modeOptionCardInactive: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    modeOptionDescription: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      lineHeight: 18,
+    },
+    modeOptionDescriptionActive: {
+      color: colors.surfaceMuted,
+    },
+    modeOptionTitle: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    modeOptionTitleActive: {
+      color: colors.surface,
+    },
+    previewImage: {
+      borderRadius: radius.md,
+      height: 180,
+      resizeMode: 'cover',
+      width: '100%',
+    },
+    quickRepeatSection: {
+      gap: spacing.sm,
+    },
+    rawTextBox: {
+      backgroundColor: colors.background,
+      borderRadius: radius.md,
+      gap: spacing.xs,
+      padding: spacing.md,
+    },
+    rawTextSection: {
+      gap: spacing.sm,
+    },
+    rawTextTitle: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    rawTextValue: {
+      color: colors.text,
+      fontSize: typography.caption,
+      lineHeight: 18,
+    },
+    reviewFieldCard: {
+      backgroundColor: colors.background,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      gap: spacing.sm,
+      padding: spacing.md,
+    },
+    reviewFieldCardAttention: {
+      backgroundColor: colors.warningSoft,
+      borderColor: colors.warning,
+    },
+    reviewFieldHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: spacing.sm,
+      justifyContent: 'space-between',
+    },
+    reviewFieldHelper: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      lineHeight: 18,
+    },
+    reviewFieldLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    reviewFieldList: {
+      gap: spacing.sm,
+    },
+    screen: {
+      backgroundColor: colors.background,
+    },
+    secondaryButton: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    secondaryButtonLabelMuted: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    secondaryButtonMuted: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    statusBadge: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.xs,
+    },
+    statusBadgeLabel: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    statusBadgeLabelMuted: {
+      color: colors.textMuted,
+    },
+    statusBadgeLabelPositive: {
+      color: colors.primary,
+    },
+    statusBadgeMuted: {
+      backgroundColor: colors.background,
+    },
+    statusBadgePositive: {
+      backgroundColor: colors.primarySoft,
+    },
+    successText: {
+      color: colors.primary,
+      fontSize: typography.caption,
+      fontWeight: '700',
+      marginTop: spacing.sm,
+    },
+    summaryItem: {
+      color: colors.text,
+      fontSize: typography.caption,
+      lineHeight: 20,
+    },
+    summaryList: {
+      gap: spacing.xs,
+    },
+    summaryRow: {
+      gap: spacing.xs,
+    },
+    summaryText: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+    },
+    title: {
+      color: colors.text,
+      fontSize: typography.title,
+      fontWeight: '800',
+    },
+  });
+}

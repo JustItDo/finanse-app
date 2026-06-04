@@ -1,6 +1,7 @@
 import { Pressable, StyleSheet, Text } from 'react-native';
 
-import { colors, radius, spacing } from '@/src/shared/theme';
+import { radius, spacing, type AppThemeColors } from '@/src/shared/theme';
+import { useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 
 type AppButtonProps = {
   label: string;
@@ -16,6 +17,7 @@ export function AppButton({
   variant = 'primary',
 }: AppButtonProps) {
   const isSecondary = variant === 'secondary';
+  const styles = useThemeStyles(createStyles);
 
   return (
     <Pressable
@@ -40,35 +42,37 @@ export function AppButton({
   );
 }
 
-const styles = StyleSheet.create({
-  button: {
-    alignItems: 'center',
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.md,
-  },
-  buttonPrimary: {
-    backgroundColor: colors.primary,
-  },
-  buttonSecondary: {
-    backgroundColor: colors.surfaceMuted,
-    borderColor: colors.border,
-    borderWidth: 1,
-  },
-  buttonDisabled: {
-    opacity: 0.6,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: '700',
-  },
-  labelPrimary: {
-    color: colors.surface,
-  },
-  labelSecondary: {
-    color: colors.text,
-  },
-  labelDisabled: {
-    color: colors.textMuted,
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    button: {
+      alignItems: 'center',
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.md,
+    },
+    buttonPrimary: {
+      backgroundColor: colors.cta,
+    },
+    buttonSecondary: {
+      backgroundColor: colors.surfaceMuted,
+      borderColor: colors.border,
+      borderWidth: 1,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    labelPrimary: {
+      color: colors.ctaText,
+    },
+    labelSecondary: {
+      color: colors.text,
+    },
+    labelDisabled: {
+      color: colors.textMuted,
+    },
+  });
+}

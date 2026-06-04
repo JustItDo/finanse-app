@@ -90,8 +90,7 @@ export async function loadHistoryScreenState(
   const fallbackMonthKey = months[0] ?? getCurrentMonthKey();
   const resolvedFilters: HistoryFilterValues = {
     categoryId: filters.categoryId ?? '',
-    monthKey:
-      filters.monthKey !== undefined ? filters.monthKey : fallbackMonthKey,
+    monthKey: filters.monthKey ?? ALL_MONTHS_VALUE,
     searchText: filters.searchText ?? '',
     type: filters.type ?? 'all',
   };

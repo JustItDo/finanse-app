@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { FontAwesome5 } from '@expo/vector-icons';
 import {
   DefaultTheme,
@@ -17,7 +17,8 @@ import { DashboardScreen } from '@/src/features/dashboard/screens/DashboardScree
 import { HistoryScreen } from '@/src/features/history/screens/HistoryScreen';
 import { SettingsScreen } from '@/src/features/settings/screens/SettingsScreen';
 import { AddTransactionScreen } from '@/src/features/transactions/screens/AddTransactionScreen';
-import { colors, spacing, typography } from '@/src/shared/theme';
+import { spacing, typography, type AppThemeColors } from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import { AppButton, AppCard } from '@/src/shared/ui';
 
 export type RootTabParamList = {
@@ -31,19 +32,6 @@ export type RootTabParamList = {
 
 const Tab = createBottomTabNavigator<RootTabParamList>();
 
-const navigationTheme: NavigationTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: colors.background,
-    card: colors.surface,
-    border: colors.border,
-    primary: colors.primary,
-    text: colors.text,
-    notification: colors.primary,
-  },
-};
-
 const tabIcons: Record<
   keyof RootTabParamList,
   keyof typeof FontAwesome5.glyphMap
@@ -53,12 +41,14 @@ const tabIcons: Record<
   History: 'list-alt',
   Budgets: 'wallet',
   Analysis: 'chart-line',
-  Settings: 'shield-alt',
+  Settings: 'cog',
 };
 
 export function AppNavigator() {
   const insets = useSafeAreaInsets();
   const navigationRef = useNavigationContainerRef<RootTabParamList>();
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const { shouldPromptSecuritySetup, dismissSecuritySetupPrompt, settings } =
     useSecurity();
   const [hideSetupPromptForSession, setHideSetupPromptForSession] =
@@ -66,6 +56,21 @@ export function AppNavigator() {
 
   const showSecuritySetupPrompt =
     shouldPromptSecuritySetup && !settings.hasPin && !hideSetupPromptForSession;
+  const navigationTheme = useMemo<NavigationTheme>(
+    () => ({
+      ...DefaultTheme,
+      colors: {
+        ...DefaultTheme.colors,
+        background: colors.background,
+        card: colors.surface,
+        border: colors.border,
+        primary: colors.primary,
+        text: colors.text,
+        notification: colors.primary,
+      },
+    }),
+    [colors],
+  );
 
   return (
     <>
@@ -128,7 +133,7 @@ export function AppNavigator() {
           <Tab.Screen
             name="Settings"
             component={SettingsScreen}
-            options={{ title: 'Bezpieczeństwo' }}
+            options={{ title: 'Ustawienia' }}
           />
         </Tab.Navigator>
       </NavigationContainer>
@@ -138,7 +143,8 @@ export function AppNavigator() {
           <AppCard>
             <Text style={styles.promptTitle}>Ustawić PIN do aplikacji?</Text>
             <Text style={styles.promptText}>
-              Możesz zabezpieczyć wejście PIN-em i opcjonalnie biometrią.
+              Możesz w Ustawieniach zabezpieczyć wejście PIN-em i opcjonalnie
+              biometrią.
             </Text>
             <View style={styles.promptActions}>
               <AppButton
@@ -164,25 +170,27 @@ export function AppNavigator() {
   );
 }
 
-const styles = StyleSheet.create({
-  promptOverlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(31, 41, 51, 0.45)',
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  promptTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  promptText: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 22,
-  },
-  promptActions: {
-    gap: spacing.sm,
-    marginTop: spacing.sm,
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    promptOverlay: {
+      ...StyleSheet.absoluteFill,
+      backgroundColor: colors.modeOverlay,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    promptTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    promptText: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 22,
+    },
+    promptActions: {
+      gap: spacing.sm,
+      marginTop: spacing.sm,
+    },
+  });
+}

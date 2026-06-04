@@ -161,6 +161,32 @@ export async function createStorageServices() {
         },
       },
 
+      backup: {
+        async exportBackup() {
+          throw new Error(
+            'Eksport ZIP jest w tej wersji dostępny tylko w aplikacji mobilnej.',
+          );
+        },
+
+        async saveBackupToFiles() {
+          throw new Error(
+            'Zapis ZIP do plików jest w tej wersji dostępny tylko w aplikacji mobilnej.',
+          );
+        },
+
+        async shareBackup() {
+          throw new Error(
+            'Udostępnianie ZIP jest w tej wersji dostępne tylko w aplikacji mobilnej.',
+          );
+        },
+
+        async importBackup() {
+          throw new Error(
+            'Import ZIP jest w tej wersji dostępny tylko w aplikacji mobilnej.',
+          );
+        },
+      },
+
       budgets: {
         async clearMonthlyBudget(monthKey: string) {
           const store = readStore();
@@ -744,6 +770,12 @@ export function createBootstrapErrorRepositories() {
       create: notReady,
       linkToTransaction: notReady,
       listByTransactionId: notReady,
+    },
+    backup: {
+      exportBackup: notReady,
+      importBackup: notReady,
+      saveBackupToFiles: notReady,
+      shareBackup: notReady,
     },
     budgets: {
       clearMonthlyBudget: notReady,

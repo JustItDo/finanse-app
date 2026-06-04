@@ -25,7 +25,13 @@ import {
   type BudgetSetupState,
 } from '@/src/features/budgets/data/budgetSetup';
 import { useAppServices } from '@/src/providers/AppServicesProvider';
-import { colors, radius, spacing, typography } from '@/src/shared/theme';
+import {
+  radius,
+  spacing,
+  typography,
+  type AppThemeColors,
+} from '@/src/shared/theme';
+import { useTheme, useThemeStyles } from '@/src/shared/theme/ThemeProvider';
 import {
   AppButton,
   AppCard,
@@ -44,7 +50,6 @@ type CategoryDraft = {
   icon: string | null;
   name: string;
   isActive: boolean;
-  limitEnabled: boolean;
   limitText: string;
 };
 
@@ -57,7 +62,6 @@ function createDrafts(setup: BudgetSetupState) {
     drafts[item.category.id] = {
       icon: item.category.icon,
       isActive: item.isActive,
-      limitEnabled: item.budgetLimitMinor !== null,
       limitText: formatMinorUnitsInput(item.budgetLimitMinor),
       name: item.category.name,
     };
@@ -136,6 +140,7 @@ function flattenCategoryItems(setup: BudgetSetupState) {
 
 export function BudgetsScreen() {
   const { repositories, status } = useAppServices();
+  const styles = useThemeStyles(createStyles);
   const { contentBottomPadding, contentTopPadding } = useScreenContentInsets();
   const monthKey = getCurrentMonthKey();
   const scrollRef = useRef<ScrollView | null>(null);
@@ -333,16 +338,20 @@ export function BudgetsScreen() {
 
       const isExpense =
         item.transactionType === 'expense' || item.transactionType === 'both';
+      const trimmedLimitText = draft.limitText.trim();
       const parsedLimit =
-        isExpense && draft.limitEnabled
-          ? parseMoneyToMinorUnits(draft.limitText)
+        isExpense && trimmedLimitText
+          ? parseMoneyToMinorUnits(trimmedLimitText)
           : null;
 
-      if (isExpense && draft.limitEnabled && parsedLimit === null) {
+      if (isExpense && trimmedLimitText && parsedLimit === null) {
         throw new Error(
-          `Podaj poprawny limit dla kategorii „${item.category.name}”.`,
+          `Podaj poprawny limit dla kategorii „${item.category.name}” albo wpisz 0, żeby zostawić ją bez limitu.`,
         );
       }
+
+      const limitAmountMinor =
+        isExpense && draft.isActive && trimmedLimitText ? parsedLimit : null;
 
       await saveCategoryConfig(repositories, {
         categoryId: item.category.id,
@@ -350,7 +359,7 @@ export function BudgetsScreen() {
         currencyCode: setup.currencyCode,
         isActive: draft.isActive,
         icon: draft.icon,
-        limitAmountMinor: isExpense && draft.isActive ? parsedLimit : null,
+        limitAmountMinor,
         monthKey: setup.monthKey,
         transactionType: item.transactionType,
       });
@@ -454,7 +463,10 @@ export function BudgetsScreen() {
         automaticallyAdjustKeyboardInsets
         contentContainerStyle={[
           styles.content,
-          { paddingBottom: contentBottomPadding, paddingTop: contentTopPadding },
+          {
+            paddingBottom: contentBottomPadding,
+            paddingTop: contentTopPadding,
+          },
         ]}
         contentInsetAdjustmentBehavior="automatic"
         keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
@@ -760,6 +772,8 @@ function BudgetListSection({
   selectedCategoryId: string | null;
   onSelect: (categoryId: string) => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   if (items.length === 0) {
     return null;
   }
@@ -794,6 +808,9 @@ function CategoryListItem({
   isSelected: boolean;
   onPress: () => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -871,6 +888,8 @@ function CategoryDetailCard({
   onFieldRef: (fieldId: string) => (input: TextInput | null) => void;
   onClose: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   if (!draft) {
     return null;
   }
@@ -948,32 +967,24 @@ function CategoryDetailCard({
 
         {supportsBudget ? (
           <>
-            <View style={styles.row}>
-              <ToggleChip
-                active={draft.limitEnabled}
-                label={draft.limitEnabled ? 'Limit aktywny' : 'Bez limitu'}
-                onPress={() =>
-                  onChangeDraft(item.category.id, {
-                    limitEnabled: !draft.limitEnabled,
-                  })
-                }
-              />
-            </View>
-
             <View
               onLayout={onFieldLayout(`category_limit_${item.category.id}`)}
             >
+              <Text style={styles.label}>Limit kategorii</Text>
               <AppInput
                 ref={onFieldRef(`category_limit_${item.category.id}`)}
-                editable={draft.limitEnabled}
                 keyboardType="decimal-pad"
                 onChangeText={(value) =>
                   onChangeDraft(item.category.id, { limitText: value })
                 }
                 onFocus={onFieldFocus(`category_limit_${item.category.id}`)}
-                placeholder="Limit kategorii, np. 500,00"
+                placeholder="0 albo puste pole = Bez limitu"
                 value={draft.limitText}
               />
+              <Text style={styles.helperText}>
+                Wpisz 0 zł albo zostaw puste pole, jeśli ta kategoria ma być bez
+                limitu.
+              </Text>
             </View>
           </>
         ) : null}
@@ -1029,6 +1040,8 @@ function CollapsibleIconPicker({
   selectedIcon: string | null;
   onSelect: (icon: string) => void;
 }) {
+  const { colors } = useTheme();
+  const styles = useThemeStyles(createStyles);
   const [isOpen, setIsOpen] = useState(false);
   const selectedOption =
     CATEGORY_ICON_OPTIONS.find((option) => option.key === selectedIcon) ?? null;
@@ -1109,6 +1122,8 @@ function ToggleChip({
   active: boolean;
   onPress: () => void;
 }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <Pressable
       onPress={onPress}
@@ -1136,6 +1151,7 @@ function StatusBadge({
   label: string;
   status: BudgetCategoryStatus | BudgetMonthStatus;
 }) {
+  const styles = useThemeStyles(createStyles);
   const isDanger = status === 'over_budget';
   const isWarning = status === 'warning';
   const isMuted =
@@ -1173,6 +1189,7 @@ function ProgressBar({
   ratio: number;
   status: BudgetCategoryStatus | BudgetMonthStatus;
 }) {
+  const styles = useThemeStyles(createStyles);
   const progress = Math.max(0, Math.min(ratio, 1));
   const width: `${number}%` = `${progress * 100}%`;
 
@@ -1194,6 +1211,8 @@ function ProgressBar({
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View style={styles.metricCard}>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -1203,6 +1222,8 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function MiniMetric({ label, value }: { label: string; value: string }) {
+  const styles = useThemeStyles(createStyles);
+
   return (
     <View style={styles.miniMetric}>
       <Text style={styles.miniMetricLabel}>{label}</Text>
@@ -1211,319 +1232,321 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: colors.background,
-    flex: 1,
-  },
-  content: {
-    gap: spacing.lg,
-    padding: spacing.lg,
-  },
-  hero: {
-    gap: spacing.sm,
-  },
-  title: {
-    color: colors.text,
-    fontSize: typography.title,
-    fontWeight: '800',
-  },
-  description: {
-    color: colors.textMuted,
-    fontSize: typography.body,
-    lineHeight: 24,
-  },
-  cardHeader: {
-    alignItems: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-  },
-  cardHeaderCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  sectionTitle: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  helperText: {
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  label: {
-    color: colors.text,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  feedbackText: {
-    color: colors.primary,
-    fontWeight: '700',
-  },
-  errorText: {
-    color: colors.danger,
-    lineHeight: 20,
-  },
-  warningText: {
-    color: '#A96300',
-    lineHeight: 20,
-  },
-  metricsGrid: {
-    gap: spacing.md,
-  },
-  metricCard: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.md,
-    gap: spacing.xs,
-    padding: spacing.md,
-  },
-  metricLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    textTransform: 'uppercase',
-  },
-  metricValue: {
-    color: colors.text,
-    fontSize: typography.subtitle,
-    fontWeight: '700',
-  },
-  progressHeader: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  progressLabel: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    textTransform: 'uppercase',
-  },
-  progressValue: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  progressTrack: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.pill,
-    height: 10,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    borderRadius: radius.pill,
-    height: '100%',
-  },
-  progressBarPositive: {
-    backgroundColor: colors.primary,
-  },
-  progressBarWarning: {
-    backgroundColor: '#C8891C',
-  },
-  progressBarDanger: {
-    backgroundColor: colors.danger,
-  },
-  row: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  iconPickerBlock: {
-    gap: spacing.sm,
-  },
-  iconPickerWrap: {
-    gap: spacing.sm,
-  },
-  iconPickerTrigger: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  iconPickerTriggerValue: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  iconPickerTriggerLabel: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  iconPickerTriggerAction: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  iconOption: {
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    gap: spacing.xs,
-    minWidth: 76,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.sm,
-  },
-  iconOptionActive: {
-    backgroundColor: colors.primarySoft,
-    borderColor: colors.primary,
-  },
-  iconOptionLabel: {
-    color: colors.textMuted,
-    fontSize: 11,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  iconOptionLabelActive: {
-    color: colors.primary,
-  },
-  toggleChip: {
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-  },
-  toggleChipActive: {
-    backgroundColor: colors.primarySoft,
-    borderColor: colors.primary,
-  },
-  toggleChipInactive: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-  },
-  toggleChipLabel: {
-    color: colors.text,
-    fontWeight: '600',
-  },
-  toggleChipLabelActive: {
-    color: colors.primary,
-  },
-  statusBadge: {
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  statusBadgePositive: {
-    backgroundColor: colors.primarySoft,
-  },
-  statusBadgeWarning: {
-    backgroundColor: '#F8E9C7',
-  },
-  statusBadgeDanger: {
-    backgroundColor: '#F7D8D3',
-  },
-  statusBadgeMuted: {
-    backgroundColor: colors.surfaceMuted,
-  },
-  statusBadgeLabel: {
-    fontSize: typography.caption,
-    fontWeight: '700',
-  },
-  statusBadgeLabelPositive: {
-    color: colors.primary,
-  },
-  statusBadgeLabelWarning: {
-    color: '#A96300',
-  },
-  statusBadgeLabelDanger: {
-    color: colors.danger,
-  },
-  statusBadgeLabelMuted: {
-    color: colors.textMuted,
-  },
-  categoryList: {
-    gap: spacing.md,
-  },
-  categoryIconWrap: {
-    alignItems: 'center',
-    backgroundColor: colors.primarySoft,
-    borderRadius: radius.md,
-    height: 36,
-    justifyContent: 'center',
-    width: 36,
-  },
-  listItem: {
-    alignItems: 'center',
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    flexDirection: 'row',
-    gap: spacing.md,
-    justifyContent: 'space-between',
-    padding: spacing.md,
-  },
-  listItemSelected: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primarySoft,
-  },
-  listItemCopy: {
-    flex: 1,
-    gap: spacing.xs,
-  },
-  listItemMeta: {
-    alignItems: 'flex-end',
-    gap: spacing.xs,
-  },
-  listItemAction: {
-    color: colors.textMuted,
-    fontSize: typography.caption,
-    fontWeight: '600',
-  },
-  categoryName: {
-    color: colors.text,
-    fontSize: typography.body,
-    fontWeight: '700',
-  },
-  categoryMeta: {
-    color: colors.textMuted,
-    lineHeight: 20,
-  },
-  metricsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: spacing.sm,
-  },
-  miniMetric: {
-    backgroundColor: colors.surfaceMuted,
-    borderRadius: radius.sm,
-    flexGrow: 1,
-    gap: spacing.xs,
-    minWidth: 92,
-    padding: spacing.sm,
-  },
-  miniMetricLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    textTransform: 'uppercase',
-  },
-  miniMetricValue: {
-    color: colors.text,
-    fontWeight: '700',
-  },
-  inlineActions: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-  },
-  inlineAction: {
-    flex: 1,
-  },
-  loadingState: {
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    flex: 1,
-    justifyContent: 'center',
-    padding: spacing.xl,
-  },
-  loadingText: {
-    color: colors.text,
-  },
-});
+function createStyles(colors: AppThemeColors) {
+  return StyleSheet.create({
+    screen: {
+      backgroundColor: colors.background,
+      flex: 1,
+    },
+    content: {
+      gap: spacing.lg,
+      padding: spacing.lg,
+    },
+    hero: {
+      gap: spacing.sm,
+    },
+    title: {
+      color: colors.text,
+      fontSize: typography.title,
+      fontWeight: '800',
+    },
+    description: {
+      color: colors.textMuted,
+      fontSize: typography.body,
+      lineHeight: 24,
+    },
+    cardHeader: {
+      alignItems: 'flex-start',
+      flexDirection: 'row',
+      gap: spacing.md,
+      justifyContent: 'space-between',
+    },
+    cardHeaderCopy: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    sectionTitle: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    helperText: {
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    label: {
+      color: colors.text,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    feedbackText: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    errorText: {
+      color: colors.danger,
+      lineHeight: 20,
+    },
+    warningText: {
+      color: colors.warning,
+      lineHeight: 20,
+    },
+    metricsGrid: {
+      gap: spacing.md,
+    },
+    metricCard: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.md,
+      gap: spacing.xs,
+      padding: spacing.md,
+    },
+    metricLabel: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      textTransform: 'uppercase',
+    },
+    metricValue: {
+      color: colors.text,
+      fontSize: typography.subtitle,
+      fontWeight: '700',
+    },
+    progressHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    progressLabel: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      textTransform: 'uppercase',
+    },
+    progressValue: {
+      color: colors.text,
+      fontWeight: '700',
+    },
+    progressTrack: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.pill,
+      height: 10,
+      overflow: 'hidden',
+    },
+    progressBar: {
+      borderRadius: radius.pill,
+      height: '100%',
+    },
+    progressBarPositive: {
+      backgroundColor: colors.success,
+    },
+    progressBarWarning: {
+      backgroundColor: colors.warning,
+    },
+    progressBarDanger: {
+      backgroundColor: colors.danger,
+    },
+    row: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    iconPickerBlock: {
+      gap: spacing.sm,
+    },
+    iconPickerWrap: {
+      gap: spacing.sm,
+    },
+    iconPickerTrigger: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    iconPickerTriggerValue: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    iconPickerTriggerLabel: {
+      color: colors.text,
+      fontWeight: '600',
+    },
+    iconPickerTriggerAction: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    iconGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    iconOption: {
+      alignItems: 'center',
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      gap: spacing.xs,
+      minWidth: 76,
+      paddingHorizontal: spacing.sm,
+      paddingVertical: spacing.sm,
+    },
+    iconOptionActive: {
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary,
+    },
+    iconOptionLabel: {
+      color: colors.textMuted,
+      fontSize: 11,
+      fontWeight: '600',
+      textAlign: 'center',
+    },
+    iconOptionLabelActive: {
+      color: colors.primary,
+    },
+    toggleChip: {
+      borderRadius: radius.pill,
+      borderWidth: 1,
+      paddingHorizontal: spacing.lg,
+      paddingVertical: spacing.sm,
+    },
+    toggleChipActive: {
+      backgroundColor: colors.primarySoft,
+      borderColor: colors.primary,
+    },
+    toggleChipInactive: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+    },
+    toggleChipLabel: {
+      color: colors.text,
+      fontWeight: '600',
+    },
+    toggleChipLabelActive: {
+      color: colors.primary,
+    },
+    statusBadge: {
+      borderRadius: radius.pill,
+      paddingHorizontal: spacing.md,
+      paddingVertical: spacing.sm,
+    },
+    statusBadgePositive: {
+      backgroundColor: colors.primarySoft,
+    },
+    statusBadgeWarning: {
+      backgroundColor: colors.warningSoft,
+    },
+    statusBadgeDanger: {
+      backgroundColor: colors.dangerSoft,
+    },
+    statusBadgeMuted: {
+      backgroundColor: colors.surfaceMuted,
+    },
+    statusBadgeLabel: {
+      fontSize: typography.caption,
+      fontWeight: '700',
+    },
+    statusBadgeLabelPositive: {
+      color: colors.primary,
+    },
+    statusBadgeLabelWarning: {
+      color: colors.primary,
+    },
+    statusBadgeLabelDanger: {
+      color: colors.danger,
+    },
+    statusBadgeLabelMuted: {
+      color: colors.textMuted,
+    },
+    categoryList: {
+      gap: spacing.md,
+    },
+    categoryIconWrap: {
+      alignItems: 'center',
+      backgroundColor: colors.primarySoft,
+      borderRadius: radius.md,
+      height: 36,
+      justifyContent: 'center',
+      width: 36,
+    },
+    listItem: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: radius.md,
+      borderWidth: 1,
+      flexDirection: 'row',
+      gap: spacing.md,
+      justifyContent: 'space-between',
+      padding: spacing.md,
+    },
+    listItemSelected: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primarySoft,
+    },
+    listItemCopy: {
+      flex: 1,
+      gap: spacing.xs,
+    },
+    listItemMeta: {
+      alignItems: 'flex-end',
+      gap: spacing.xs,
+    },
+    listItemAction: {
+      color: colors.textMuted,
+      fontSize: typography.caption,
+      fontWeight: '600',
+    },
+    categoryName: {
+      color: colors.text,
+      fontSize: typography.body,
+      fontWeight: '700',
+    },
+    categoryMeta: {
+      color: colors.textMuted,
+      lineHeight: 20,
+    },
+    metricsRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: spacing.sm,
+    },
+    miniMetric: {
+      backgroundColor: colors.surfaceMuted,
+      borderRadius: radius.sm,
+      flexGrow: 1,
+      gap: spacing.xs,
+      minWidth: 92,
+      padding: spacing.sm,
+    },
+    miniMetricLabel: {
+      color: colors.textMuted,
+      fontSize: 12,
+      textTransform: 'uppercase',
+    },
+    miniMetricValue: {
+      color: colors.text,
+      fontWeight: '700',
+    },
+    inlineActions: {
+      flexDirection: 'row',
+      gap: spacing.sm,
+    },
+    inlineAction: {
+      flex: 1,
+    },
+    loadingState: {
+      alignItems: 'center',
+      backgroundColor: colors.background,
+      flex: 1,
+      justifyContent: 'center',
+      padding: spacing.xl,
+    },
+    loadingText: {
+      color: colors.text,
+    },
+  });
+}
