@@ -1,5 +1,42 @@
 {
+  "_comment": "Karta projektu: CLAUDE.md. SessionStart wstrzykuje najpierw gotowe ustalenia ze stan-zespolu, a gdy ich nie ma — indeks skrzynki zadań. Lokalni agenci są w .claude/agents/. Bramka dotyczy wyłącznie publikacji EAS/Expo, nie lokalnego startu aplikacji.",
   "enabledPlugins": {
     "expo@claude-plugins-official": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npm run *)",
+      "Read",
+      "Edit(.claude/*)",
+      "Write(.claude/*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$HOME/.claude/hooks/przed-deployem.sh\"",
+            "shell": "bash",
+            "timeout": 15,
+            "statusMessage": "Bramka publikacji — Strażnik Jakości"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "D=\"$CLAUDE_PROJECT_DIR/.claude/projekt/stan-zespolu\"; U=$(find \"$D\" -maxdepth 1 -type f ! -name 'README.md' 2>/dev/null); if [ -n \"$U\" ]; then echo \"$U\" | while IFS= read -r p; do echo \"--- $(basename \"$p\") ---\"; cat \"$p\"; echo; done; else S=\"$CLAUDE_PROJECT_DIR/.claude/projekt/skrzynka-zadan.md\"; [ -s \"$S\" ] && cat \"$S\" || true; fi",
+            "statusMessage": "Sprawdzam stan zespołu i skrzynkę zadań"
+          }
+        ]
+      }
+    ]
   }
 }

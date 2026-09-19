@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# documentation lives in the separate private finanse-wiki repository
+/wiki/
