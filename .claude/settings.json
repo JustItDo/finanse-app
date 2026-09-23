@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "D=\"$CLAUDE_PROJECT_DIR/.claude/projekt/stan-zespolu\"; U=$(find \"$D\" -maxdepth 1 -type f ! -name 'README.md' 2>/dev/null); if [ -n \"$U\" ]; then echo \"$U\" | while IFS= read -r p; do echo \"--- $(basename \"$p\") ---\"; cat \"$p\"; echo; done; else S=\"$CLAUDE_PROJECT_DIR/.claude/projekt/skrzynka-zadan.md\"; [ -s \"$S\" ] && cat \"$S\" || true; fi",
+            "command": "bash \"$HOME/.claude/hooks/inject-context.sh\"",
             "statusMessage": "Sprawdzam stan zespołu i skrzynkę zadań"
           }
         ]
