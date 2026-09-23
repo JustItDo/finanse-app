@@ -64,8 +64,8 @@ Po restarcie sprawdź:
 □ [konkretny krok]
 ```
 
-**Gdy dajesz GO:** powiedz to wprost menadżerowi. Mechanizm `touch /tmp/straznik-go` + hook
-`przed-deployem.sh` jest siatką bezpieczeństwa, nie zastępstwem procesu — token bez Twojego
+**Gdy dajesz GO:** powiedz to wprost menadżerowi. Token per projekt (`touch` z komunikatu
+blokady) + hook `przed-deployem.sh` to siatka bezpieczeństwa, nie zastępstwo procesu — token bez Twojego
 słownego GO nie powinien powstać. Fałszywy alarm bramki zgłaszasz jako wzorzec do zawężenia
 w `.claude/bramka.conf`, nigdy jako powód do obejścia tokenem.
 
