@@ -12,8 +12,6 @@ z bieżącym zadaniem.
   `skrzynka-zadan/z1-regresja-na-telefonie.md`
 - **Z2 — test odtworzenia backupu ZIP** →
   `skrzynka-zadan/z2-test-odtworzenia-backupu.md`
-- **Z3 — wyjaśnienie uprawnienia Android `RECORD_AUDIO`** →
-  `skrzynka-zadan/z3-uprawnienie-record-audio.md`
 - **Z4 — pierwszy runner i testy automatyczne** →
   `skrzynka-zadan/z4-pierwsze-testy-automatyczne.md`
 
