@@ -111,6 +111,18 @@ npm run lint
 Projekt nie ma jeszcze runnera testów automatycznych. Build natywny i test na urządzeniu są
 osobnymi dowodami; wynik `typecheck`/`lint` ich nie zastępuje.
 
+## Worktree
+
+Podstawienia i znaczenie pól: `/karta-projektu`. Przygotowanie puszcza Claude poza sandboxem
+(wykonawca nie ma sieci).
+- Przygotowanie: `cd {wt} && npm ci` (`.env` projekt nie ma; `android/` jest poza gitem, więc
+  build natywny i test na urządzeniu tylko w `{main}` po merge).
+- Testy równolegle: runnera testów nie ma; `npm run typecheck` i `npm run lint` działają
+  w katalogu worktree bez wspólnego stanu.
+- Porty: Metro `npm start -- --port $((8081 + 10#{NN}))`; 8081 zostaje dla głównego checkoutu.
+- Sprzątanie: brak
+- Maks. wykonawców: 2
+
 ## Zasady specyficzne dla projektu
 
 - Jedna iteracja ma jedną hipotezę i możliwy do sprawdzenia efekt.
